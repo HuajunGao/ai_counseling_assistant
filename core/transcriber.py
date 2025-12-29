@@ -3,46 +3,45 @@ import queue
 import time
 import numpy as np
 import logging
-from faster_whisper import WhisperModel
 import config
+from core.asr_providers import create_asr_provider
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class Transcriber(threading.Thread):
-    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, model_size=config.WHISPER_MODEL_SIZE, device=config.DEVICE, compute_type=config.COMPUTE_TYPE):
+    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue):
         super().__init__()
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.running = False
-        self.model_size = model_size
-        self.device = device
-        self.compute_type = compute_type
-        self.model = None
-        
+        self.provider = None
+
         # Audio buffer configuration
         self.sample_rate = config.SAMPLE_RATE
+        self.chunk_ms = config.ASR_CHUNK_MS
+        self.chunk_frames = int(self.sample_rate * (self.chunk_ms / 1000.0))
         self.audio_buffer = np.array([], dtype=np.float32)
-        self.new_data_threshold = 1.0 # Process every 1 second of new data
-        self.last_process_time = time.time()
-        self.silence_threshold = 0.01 # RMS threshold for silence
-        self.silence_duration = 0
-        self.max_silence_to_commit = 1.5 # Seconds of silence to commit the segment
+
+        # VAD/dynamic chunking
+        self.vad_enabled = config.ASR_VAD_ENABLED
+        self.vad_threshold = config.ASR_VAD_THRESHOLD
+        self.dynamic_chunks = config.ASR_DYNAMIC_CHUNKS
+        self.silence_ms = config.ASR_SILENCE_MS
+        self.min_segment_ms = config.ASR_MIN_SEGMENT_MS
+        self.max_segment_ms = config.ASR_MAX_SEGMENT_MS
+        self.silence_accum_ms = 0.0
+        self.segment_parts = []
+        self.segment_frames = 0
 
     def load_model(self):
-        logger.info(f"Loading Whisper model: {self.model_size} on {self.device}...")
         try:
-            self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
-            logger.info("Whisper model loaded successfully.")
+            self.provider = create_asr_provider(config)
+            logger.info("ASR provider loaded: %s", config.ASR_BACKEND)
         except Exception as e:
-            logger.error(f"Error loading Whisper model: {e}")
-            # Fallback to cpu/int8 if cuda fails
-            if self.device == "cuda":
-                logger.warning("Falling back to CPU...")
-                self.device = "cpu"
-                self.compute_type = "int8"
-                self.model = WhisperModel(self.model_size, device=self.device, compute_type=self.compute_type)
+            logger.error(f"Error loading ASR provider: {e}")
+            raise
 
     def run(self):
         self.load_model()
@@ -63,60 +62,79 @@ class Transcriber(threading.Thread):
                     data = np.concatenate(chunks)
                     self.audio_buffer = np.concatenate((self.audio_buffer, data))
 
-                # Check amplitude for VAD (Simple RMS)
-                if len(self.audio_buffer) > 0:
-                    current_rms = np.sqrt(np.mean(self.audio_buffer[-int(self.sample_rate*0.5):]**2)) if len(self.audio_buffer) > self.sample_rate*0.5 else 0
-                    if current_rms < self.silence_threshold:
-                        self.silence_duration += (time.time() - self.last_process_time)
-                    else:
-                        self.silence_duration = 0
+                while self.audio_buffer.shape[0] >= self.chunk_frames:
+                    chunk = self.audio_buffer[: self.chunk_frames]
+                    self.audio_buffer = self.audio_buffer[self.chunk_frames :]
+                    self.handle_chunk(chunk)
 
-                # Process condition: Enough new data OR silence commit
-                time_since_last = time.time() - self.last_process_time
-                if (len(self.audio_buffer) > 0) and (time_since_last > self.new_data_threshold or self.silence_duration > self.max_silence_to_commit):
-                    
-                    self.transcribe_buffer()
-                    self.last_process_time = time.time()
-
-                    # If silence committed, clear buffer
-                    if self.silence_duration > self.max_silence_to_commit:
-                         # Send finalization signal/clear buffer
-                         # For MVP: Just clearing buffer is risky if we cut words, but simplest
-                         self.audio_buffer = np.array([], dtype=np.float32)
-                         self.silence_duration = 0
-                         self.output_queue.put({"type": "commit"})
-                
                 time.sleep(0.1)
                 
             except Exception as e:
                 logger.error(f"Error in transcription loop: {e}")
                 time.sleep(1)
 
-    def transcribe_buffer(self):
-        if len(self.audio_buffer) < self.sample_rate * 0.5: # Skip very short audio
+    def handle_chunk(self, chunk: np.ndarray) -> None:
+        chunk_rms = rms_energy(chunk)
+
+        if self.dynamic_chunks:
+            if chunk_rms < self.vad_threshold:
+                if self.segment_parts:
+                    self.silence_accum_ms += self.chunk_ms
+                    segment_ms = (self.segment_frames / self.sample_rate) * 1000.0
+                    if self.silence_accum_ms >= self.silence_ms and segment_ms >= self.min_segment_ms:
+                        segment = np.concatenate(self.segment_parts)
+                        self.emit_segment(segment)
+                        self.reset_segment()
+                return
+
+            self.silence_accum_ms = 0.0
+            self.segment_parts.append(chunk)
+            self.segment_frames += chunk.shape[0]
+            segment_ms = (self.segment_frames / self.sample_rate) * 1000.0
+            if segment_ms >= self.max_segment_ms:
+                segment = np.concatenate(self.segment_parts)
+                self.emit_segment(segment)
+                self.reset_segment()
             return
 
-        logger.info(f"BUFFER SIZE: {len(self.audio_buffer)} - STARTING INFERENCE") # DEBUG
+        if self.vad_enabled and chunk_rms < self.vad_threshold:
+            return
+        self.emit_segment(chunk)
+
+    def emit_segment(self, segment: np.ndarray) -> None:
+        if segment.size == 0:
+            return
         try:
-            segments, info = self.model.transcribe(
-                self.audio_buffer, 
-                beam_size=5, 
-                language="zh", # Prioritize Chinese as per req, or "auto"
-                vad_filter=True
-            )
-            logger.info("INFERENCE RETURNED GENERATOR") # DEBUG
-            
-            text = " ".join([segment.text for segment in segments])
-            logger.info(f"INFERENCE DONE. TEXT: {text[:20]}...") # DEBUG
+            text = self.provider.transcribe(segment, self.sample_rate)
         except Exception as e:
             logger.error(f"TRANSCRIPTION FAILED: {e}")
             return
         if text.strip():
-            self.output_queue.put({
-                "type": "partial",
-                "text": text,
-                "timestamp": time.time()
-            })
+            self.output_queue.put(
+                {
+                    "type": "commit",
+                    "text": text.strip(),
+                    "timestamp": time.time(),
+                }
+            )
+
+    def reset_segment(self) -> None:
+        self.segment_parts = []
+        self.segment_frames = 0
+        self.silence_accum_ms = 0.0
 
     def stop(self):
         self.running = False
+
+        if self.dynamic_chunks and self.segment_parts:
+            try:
+                segment = np.concatenate(self.segment_parts)
+                self.emit_segment(segment)
+            except Exception:
+                pass
+
+
+def rms_energy(signal: np.ndarray) -> float:
+    if signal.size == 0:
+        return 0.0
+    return float(np.sqrt(np.mean(signal ** 2)))

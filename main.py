@@ -113,36 +113,6 @@ def main():
                         await asyncio.sleep(0.1)
                         continue
 
-                    if event['type'] == 'partial':
-                        # Update partial view (could be improved to replace last element)
-                        # For MVP: We just show finalized segments. Partial handling is tricky in append-only UI.
-                        # Wait, user wanted real-time.
-                        # Improved logic: If partial, update a "temp" label. If final/commit, Add permanent row.
-                        pass # Ignore partials for simple append log, or handle them.
-                        # Let's trust "commit" events or just append "partial" if it's long enough.
-                        
-                        # Actually Transcriber.py gives 'partial' events continuously. 
-                        # We need to render them.
-                        pass 
-
-                    # Re-reading Transcriber code: It emits type='partial' with text. 
-                    # And type='commit' when silence.
-                    # BUT Transcriber doesn't send "final" text for the segment in 'commit'.
-                    # It relies on 'partial' being the latest text.
-                    
-                    if event['type'] == 'partial':
-                        # This is the latest text for the current line
-                        # We should update the LAST element if it's "pending", or create a new one.
-                        # Simplification: Just log it for now.
-                        # Real implementation: Use a mutable UI element or clear/redraw the "current" line.
-                        
-                        # Let's just append for MVP to see it working, then refine.
-                        # Or better: Maintain a "Status Label" for current speech.
-                        pass
-
-                    # REVISION: Let's do a proper "Pending" line.
-                    # Since NiceGUI is declarative, we can bind a variable.
-                    
                 except Exception as e:
                     logger.error(f"UI Update error: {e}")
                     await asyncio.sleep(1)
@@ -164,22 +134,16 @@ def main():
                     event = asr_output_queue.get_nowait()
                     
                     if event['type'] == 'partial':
-                        text = event['text']
+                        text = event.get('text', '')
                         current_partial_text = text
                         active_transcript_label.set_text(text + "...")
                         
-                        # Use partials for context if really needed, but maybe too noisy
-                        # suggestion_engine.update_transcript(text) 
-                        
                     elif event['type'] == 'commit':
-                        if current_partial_text.strip():
-                            # Commit the line
+                        committed_text = event.get('text') or current_partial_text
+                        if committed_text.strip():
                             with transcript_container:
-                                components.transcript_row(current_partial_text, time.time(), is_final=True)
-                                # Add to engine history
-                                suggestion_engine.update_transcript(current_partial_text)
-                            
-                            # Move active label to bottom again
+                                components.transcript_row(committed_text, time.time(), is_final=True)
+                                suggestion_engine.update_transcript(committed_text)
                             active_transcript_label.move(transcript_container)
                             active_transcript_label.set_text('')
                             current_partial_text = ""

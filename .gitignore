@@ -1,0 +1,13 @@
+.env
+.env.*
+.venv/
+.venv-uv/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+*.wav
+*.mp3
+benchmark.wav
+run_local.log
+songguo*.txt

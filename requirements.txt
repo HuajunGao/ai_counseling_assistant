@@ -1,0 +1,20 @@
+nicegui
+sounddevice
+numpy<2
+faster-whisper
+ctranslate2==4.5.0
+nvidia-cudnn-cu12
+nvidia-cublas-cu12
+requests
+# torch is usually required for whisper, but faster-whisper handles its own ctranslate2 dependencies often. 
+# It's better to let the user install torch specific to their cuda version if needed, 
+# but adding a standard one is safe for a requirements file.
+torch
+torchaudio
+funasr
+openai
+python-dotenv
+gTTS
+soundfile
+soundcard
+azure-cognitiveservices-speech

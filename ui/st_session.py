@@ -111,12 +111,17 @@ def update_levels():
 
 def process_transcripts():
     """Process any pending transcription results."""
+    import time as time_module
+    
     # Process mic transcripts
     while not st.session_state.mic_output_queue.empty():
         try:
             item = st.session_state.mic_output_queue.get_nowait()
             if item.get('text'):
-                st.session_state.my_transcript.append(item['text'])
+                st.session_state.my_transcript.append({
+                    'time': time_module.strftime('%H:%M:%S'),
+                    'text': item['text']
+                })
         except:
             break
     
@@ -125,7 +130,10 @@ def process_transcripts():
         try:
             item = st.session_state.loopback_output_queue.get_nowait()
             if item.get('text'):
-                st.session_state.other_transcript.append(item['text'])
+                st.session_state.other_transcript.append({
+                    'time': time_module.strftime('%H:%M:%S'),
+                    'text': item['text']
+                })
         except:
             break
 
@@ -136,14 +144,18 @@ def generate_ai_suggestion(interval_seconds: int = 30):
     if current_time - st.session_state.last_suggestion_time < interval_seconds:
         return
     
-    # Build context from recent conversation
+    # Build context from recent conversation (handle dict format)
     my_recent = st.session_state.my_transcript[-5:] if st.session_state.my_transcript else []
     other_recent = st.session_state.other_transcript[-5:] if st.session_state.other_transcript else []
     
-    if not my_recent and not other_recent:
+    # Extract text from dict items
+    my_texts = [item['text'] if isinstance(item, dict) else item for item in my_recent]
+    other_texts = [item['text'] if isinstance(item, dict) else item for item in other_recent]
+    
+    if not my_texts and not other_texts:
         return
     
-    context = "对方: " + " ".join(other_recent) + "\n我: " + " ".join(my_recent)
+    context = "对方: " + " ".join(other_texts) + "\n我: " + " ".join(my_texts)
     
     try:
         suggestion = st.session_state.suggestion_engine.generate_suggestions(context)

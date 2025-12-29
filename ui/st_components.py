@@ -85,8 +85,15 @@ def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "bl
     container = st.container(height=450)
     with container:
         if transcripts:
-            for text in transcripts:
-                st.markdown(f"<div style='padding: 5px; margin: 3px 0; background: rgba(0,0,0,0.05); border-radius: 5px;'>{text}</div>", unsafe_allow_html=True)
+            # Show newest first (reversed order)
+            for item in reversed(transcripts):
+                if isinstance(item, dict):
+                    time_str = item.get('time', '')
+                    text = item.get('text', '')
+                    st.markdown(f"<div style='padding: 5px; margin: 3px 0; background: rgba(0,0,0,0.05); border-radius: 5px;'><span style='color: #666; font-size: 0.8em;'>{time_str}</span> {text}</div>", unsafe_allow_html=True)
+                else:
+                    # Legacy format (plain string)
+                    st.markdown(f"<div style='padding: 5px; margin: 3px 0; background: rgba(0,0,0,0.05); border-radius: 5px;'>{item}</div>", unsafe_allow_html=True)
         else:
             st.caption("等待转录...")
 

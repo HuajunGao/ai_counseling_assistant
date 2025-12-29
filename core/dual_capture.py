@@ -6,12 +6,21 @@ import threading
 import queue
 import time
 import warnings
+import sys
 import numpy as np
 import logging
 
 # Suppress soundcard warnings
 warnings.filterwarnings("ignore", message=".*discontinuity.*")
 warnings.filterwarnings("ignore", category=UserWarning)
+
+# Windows COM initialization for Streamlit compatibility
+if sys.platform == "win32":
+    try:
+        import pythoncom
+        pythoncom.CoInitialize()
+    except ImportError:
+        pass
 
 try:
     import soundcard as sc

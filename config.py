@@ -28,8 +28,8 @@ ASR_MIN_SEGMENT_MS = int(os.getenv("ASR_MIN_SEGMENT_MS", "800"))
 ASR_MAX_SEGMENT_MS = int(os.getenv("ASR_MAX_SEGMENT_MS", "12000"))
 
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")  # tiny/base/small/medium/large-v3
-COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "float16")
-DEVICE = os.getenv("DEVICE", "cuda")
+COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "int8")  # int8 for CPU, float16 for GPU
+DEVICE = os.getenv("DEVICE", "cpu")  # cpu for stability, cuda for GPU
 
 OPENAI_TRANSCRIBE_MODEL = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
 

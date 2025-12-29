@@ -68,31 +68,32 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for better styling
+# Custom CSS for compact layout that fills viewport
 st.markdown("""
 <style>
     .main > div {
-        padding-top: 1rem;
+        padding-top: 0.5rem;
     }
     .stProgress > div > div > div {
         background-color: #1f77b4;
     }
     .block-container {
-        padding-top: 2rem;
-        padding-bottom: 1rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+        max-width: 100%;
     }
+    /* Hide default header/footer if any */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 # Initialize session state
 init_session_state()
 
-# Header
-st.title("🎙️ AI Counseling Copilot")
-st.caption("实时对话转录与 AI 辅助系统")
-
-# Divider
-st.divider()
+# Header - compact but visible
+st.markdown("## 🎙️ AI Counseling Copilot")
 
 # Device selection and controls
 devices = get_devices()
@@ -120,7 +121,6 @@ if clear_clicked:
     clear_session()
     st.rerun()
 
-st.divider()
 
 # Main content - 3 columns
 col_left, col_center, col_right = st.columns([3, 4, 3])

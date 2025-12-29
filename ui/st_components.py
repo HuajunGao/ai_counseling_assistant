@@ -80,9 +80,9 @@ def control_buttons(is_recording: bool) -> tuple:
 
 def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "blue"):
     """Render a transcript panel with scrollable content."""
-    st.markdown(f"### {emoji} {title}")
+    st.markdown(f"**{emoji} {title}**")
     
-    container = st.container(height=450)
+    container = st.container(height=400)
     with container:
         if transcripts:
             # Show newest first (reversed order)
@@ -100,9 +100,9 @@ def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "bl
 
 def ai_suggestions_panel(suggestions: list):
     """Render AI suggestions panel."""
-    st.markdown("### 💡 AI 建议")
+    st.markdown("**💡 AI 建议**")
     
-    container = st.container(height=450)
+    container = st.container(height=400)
     with container:
         if suggestions:
             for item in reversed(suggestions[-5:]):  # Show last 5, newest first

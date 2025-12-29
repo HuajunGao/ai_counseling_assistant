@@ -35,6 +35,7 @@ def init_session_state():
         st.session_state.mic_rms = 0.0
         st.session_state.loopback_rms = 0.0
         st.session_state.last_suggestion_time = 0
+        st.session_state.last_transcript_len = 0  # Track total messages to avoid duplicate suggestions
         st.session_state.suggestion_engine = SuggestionEngine()
         # Output queues for transcription results
         st.session_state.mic_output_queue = queue.Queue()
@@ -148,6 +149,11 @@ def generate_ai_suggestion(interval_seconds: int = 30):
     my_recent = st.session_state.my_transcript[-5:] if st.session_state.my_transcript else []
     other_recent = st.session_state.other_transcript[-5:] if st.session_state.other_transcript else []
     
+    # Check if there is new content since last suggestion
+    current_len = len(st.session_state.my_transcript) + len(st.session_state.other_transcript)
+    if current_len == st.session_state.get('last_transcript_len', 0):
+        return
+
     # Extract text from dict items
     my_texts = [item['text'] if isinstance(item, dict) else item for item in my_recent]
     other_texts = [item['text'] if isinstance(item, dict) else item for item in other_recent]
@@ -165,6 +171,7 @@ def generate_ai_suggestion(interval_seconds: int = 30):
                 'text': suggestion
             })
             st.session_state.last_suggestion_time = current_time
+            st.session_state.last_transcript_len = current_len
     except Exception as e:
         pass  # Silently fail if LLM not configured
 
@@ -174,6 +181,7 @@ def clear_session():
     st.session_state.my_transcript = []
     st.session_state.other_transcript = []
     st.session_state.ai_suggestions = []
+    st.session_state.last_transcript_len = 0
     
     # Also clear pending queues
     if 'mic_output_queue' in st.session_state:

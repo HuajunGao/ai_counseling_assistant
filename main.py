@@ -6,6 +6,7 @@ if os.environ.get("KMP_DUPLICATE_LIB_OK") is None:
     os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ.setdefault("KMP_INIT_AT_FORK", "FALSE")
 
+_CUDA_DLL_DIRS = []
 if sys.platform == "win32":
     venv_root = os.path.abspath(os.path.join(os.path.dirname(sys.executable), ".."))
     site_packages = os.path.join(venv_root, "Lib", "site-packages")
@@ -13,6 +14,9 @@ if sys.platform == "win32":
         dll_dir = os.path.join(site_packages, rel_path)
         if os.path.isdir(dll_dir):
             os.add_dll_directory(dll_dir)
+            _CUDA_DLL_DIRS.append(dll_dir)
+    if _CUDA_DLL_DIRS:
+        os.environ["PATH"] = ";".join(_CUDA_DLL_DIRS + [os.environ.get("PATH", "")])
 
 from nicegui import ui, app
 import asyncio

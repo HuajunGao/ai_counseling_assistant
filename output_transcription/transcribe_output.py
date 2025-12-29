@@ -1,20 +1,55 @@
 import argparse
+import io
 import logging
 import os
 import queue
 import sys
 import time
+import warnings
 from datetime import datetime
 import inspect
 
+# Avoid OpenMP duplicate runtime aborts on Windows (torch/ctranslate2/numpy).
+_KMP_DUP_OK_SET_BY_APP = False
+if os.environ.get("KMP_DUPLICATE_LIB_OK") is None:
+    os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+    _KMP_DUP_OK_SET_BY_APP = True
+os.environ.setdefault("KMP_INIT_AT_FORK", "FALSE")
+
+_CUDA_DLL_DIRS: list[str] = []
+_CUDA_DLL_HANDLES = []
+if sys.platform == "win32":
+    venv_root = os.path.abspath(os.path.join(os.path.dirname(sys.executable), ".."))
+    site_packages = os.path.join(venv_root, "Lib", "site-packages")
+    for rel_path in ("nvidia\\cudnn\\bin", "nvidia\\cublas\\bin"):
+        dll_dir = os.path.join(site_packages, rel_path)
+        if os.path.isdir(dll_dir):
+            _CUDA_DLL_HANDLES.append(os.add_dll_directory(dll_dir))
+            _CUDA_DLL_DIRS.append(dll_dir)
+    if _CUDA_DLL_DIRS:
+        os.environ["PATH"] = ";".join(_CUDA_DLL_DIRS + [os.environ.get("PATH", "")])
+
 import numpy as np
 import sounddevice as sd
+import soundfile as sf
 from dotenv import load_dotenv
 
 try:
     import soundcard as sc
 except Exception:
     sc = None
+else:
+    # Suppress noisy loopback discontinuity warnings from soundcard on Windows.
+    try:
+        from soundcard import SoundcardRuntimeWarning
+
+        warnings.filterwarnings(
+            "ignore",
+            message="data discontinuity in recording",
+            category=SoundcardRuntimeWarning,
+        )
+    except Exception:
+        pass
 
 
 def configure_logging(level: str) -> None:
@@ -250,6 +285,67 @@ def init_azure_recognizer(args, emit):
 
     return recognizer, push_stream
 
+def init_openai_client(args):
+    try:
+        from openai import OpenAI
+    except Exception as exc:
+        raise RuntimeError(f"openai package not available: {exc}") from exc
+
+    api_key = args.openai_api_key or os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("Missing OPENAI_API_KEY (set --openai-api-key or env var OPENAI_API_KEY).")
+
+    base_url = args.openai_base_url or os.getenv("OPENAI_BASE_URL")
+    if base_url:
+        return OpenAI(api_key=api_key, base_url=base_url)
+    return OpenAI(api_key=api_key)
+
+def init_funasr_model(args):
+    try:
+        from funasr import AutoModel
+    except Exception as exc:
+        raise RuntimeError(f"funasr package not available: {exc}") from exc
+
+    model_kwargs = {
+        "model": args.funasr_model,
+        "device": args.funasr_device,
+        "disable_update": args.funasr_disable_update,
+    }
+    if args.funasr_trust_remote_code:
+        model_kwargs["trust_remote_code"] = True
+    if args.funasr_vad_model:
+        model_kwargs["vad_model"] = args.funasr_vad_model
+    if args.funasr_punc_model:
+        model_kwargs["punc_model"] = args.funasr_punc_model
+    return AutoModel(**model_kwargs)
+
+def transcribe_funasr_chunk(model, args, chunk: np.ndarray) -> str:
+    if chunk.size == 0:
+        return ""
+    result = model.generate(chunk)
+    if isinstance(result, dict):
+        return (result.get("text") or "").strip()
+    if isinstance(result, list):
+        text = " ".join((item.get("text") or "").strip() for item in result if isinstance(item, dict))
+        return text.strip()
+    return ""
+
+def transcribe_openai_chunk(client, args, chunk: np.ndarray, sample_rate: int) -> str:
+    if chunk.size == 0:
+        return ""
+    buffer = io.BytesIO()
+    setattr(buffer, "name", "audio.wav")
+    sf.write(buffer, chunk, sample_rate, format="WAV", subtype="PCM_16")
+    buffer.seek(0)
+
+    language = None if args.language == "auto" else ("zh" if args.language == "zh" else args.language)
+    response = client.audio.transcriptions.create(
+        model=args.openai_model,
+        file=buffer,
+        language=language,
+    )
+    return (response.text or "").strip()
+
 def wasapi_supports_loopback() -> bool:
     try:
         sig = inspect.signature(sd.WasapiSettings)
@@ -279,6 +375,11 @@ def main() -> int:
     parser.add_argument("--capture-sample-rate", type=int, default=None, help="Override capture sample rate")
     parser.add_argument("--vad", action="store_true", default=True, help="Enable energy VAD")
     parser.add_argument("--no-vad", action="store_false", dest="vad", help="Disable energy VAD")
+    parser.add_argument("--vad-threshold", type=float, default=0.01, help="RMS threshold for VAD")
+    parser.add_argument("--dynamic-chunks", action="store_true", help="Split by silence instead of fixed chunks")
+    parser.add_argument("--silence-ms", type=int, default=500, help="Silence duration to end a segment (ms)")
+    parser.add_argument("--min-segment-ms", type=int, default=500, help="Minimum segment duration (ms)")
+    parser.add_argument("--max-segment-ms", type=int, default=8000, help="Maximum segment duration (ms)")
     parser.add_argument("--whisper-vad", action="store_true", default=False, help="Enable Whisper's internal VAD")
     parser.add_argument("--timestamps", action="store_true", help="Prefix lines with timestamps")
     parser.add_argument("--output-file", help="Append output to a text file")
@@ -289,10 +390,23 @@ def main() -> int:
     parser.add_argument("--compute-type", default="auto", help="ASR compute type: auto/int8/float16/etc")
     parser.add_argument("--monitor-only", action="store_true", help="Only monitor loopback RMS without ASR")
     parser.add_argument("--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend")
-    parser.add_argument("--asr-backend", default="local", choices=["local", "azure"], help="ASR backend")
+    parser.add_argument("--asr-backend", default="local", choices=["local", "azure", "openai", "funasr"], help="ASR backend")
     parser.add_argument("--speech-key", help="Azure Speech key (or SPEECH_KEY env)")
     parser.add_argument("--speech-region", help="Azure Speech region (or SPEECH_REGION env)")
     parser.add_argument("--speech-endpoint", help="Azure Speech endpoint (or SPEECH_ENDPOINT env)")
+    parser.add_argument("--openai-api-key", help="OpenAI API key (or OPENAI_API_KEY env)")
+    parser.add_argument("--openai-base-url", help="OpenAI base URL (or OPENAI_BASE_URL env)")
+    parser.add_argument("--openai-model", default="gpt-4o-mini-transcribe", help="OpenAI transcription model")
+    parser.add_argument(
+        "--funasr-model",
+        default="iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
+        help="FunASR model name",
+    )
+    parser.add_argument("--funasr-device", default="cuda", help="FunASR device: cuda/cpu")
+    parser.add_argument("--funasr-vad-model", help="Optional FunASR VAD model name")
+    parser.add_argument("--funasr-punc-model", help="Optional FunASR punc model name")
+    parser.add_argument("--funasr-disable-update", action="store_true", help="Disable FunASR version update checks")
+    parser.add_argument("--funasr-trust-remote-code", action="store_true", help="Allow ModelScope trust_remote_code")
 
     args = parser.parse_args()
 
@@ -309,6 +423,10 @@ def main() -> int:
 
     configure_logging(args.log_level)
     logger = logging.getLogger("loopback_transcriber")
+    if _KMP_DUP_OK_SET_BY_APP:
+        logger.info("Set KMP_DUPLICATE_LIB_OK=TRUE to avoid OpenMP runtime conflicts.")
+    if _CUDA_DLL_DIRS:
+        logger.info("Added CUDA DLL search paths: %s", "; ".join(_CUDA_DLL_DIRS))
 
     try:
         device_id, dev = resolve_output_device(device_spec, backend)
@@ -369,11 +487,19 @@ def main() -> int:
     logger.info(f"  asr_backend={args.asr_backend}")
     if args.output_file:
         logger.info(f"  output_file={args.output_file}")
+    if args.asr_backend == "openai":
+        logger.info(f"  openai_model={args.openai_model}")
+    if args.asr_backend == "funasr":
+        logger.info(f"  funasr_model={args.funasr_model}, device={args.funasr_device}")
+    if args.dynamic_chunks and args.asr_backend == "azure":
+        logger.info("Dynamic chunking is ignored for Azure backend.")
 
     emit, file_handle = create_output_writer(args)
     model = None
     azure_recognizer = None
     azure_stream = None
+    openai_client = None
+    funasr_model = None
     if not args.monitor_only:
         if args.asr_backend == "local":
             try:
@@ -388,6 +514,20 @@ def main() -> int:
                 logger.info("Azure Speech recognizer started.")
             except Exception as exc:
                 logger.error(f"Failed to start Azure Speech: {exc}")
+                return 2
+        elif args.asr_backend == "openai":
+            try:
+                openai_client = init_openai_client(args)
+                logger.info("OpenAI transcription client ready.")
+            except Exception as exc:
+                logger.error(f"Failed to init OpenAI client: {exc}")
+                return 2
+        elif args.asr_backend == "funasr":
+            try:
+                funasr_model = init_funasr_model(args)
+                logger.info("FunASR model loaded.")
+            except Exception as exc:
+                logger.error(f"Failed to init FunASR model: {exc}")
                 return 2
 
     audio_queue: queue.Queue[np.ndarray] = queue.Queue()
@@ -421,6 +561,80 @@ def main() -> int:
 
     buffer = np.array([], dtype=np.float32)
     last_rms_log = 0.0
+    segment_parts: list[np.ndarray] = []
+    segment_frames = 0
+    silence_ms = 0.0
+
+    def transcribe_segment(segment: np.ndarray) -> None:
+        if segment.size == 0:
+            return
+        if args.asr_backend == "azure":
+            pcm = np.clip(segment, -1.0, 1.0)
+            pcm = (pcm * 32767.0).astype(np.int16)
+            azure_stream.write(pcm.tobytes())
+            return
+        if args.asr_backend == "openai":
+            try:
+                text = transcribe_openai_chunk(openai_client, args, segment, target_rate)
+                emit(text)
+            except Exception as exc:
+                logger.error("OpenAI transcription failed: %s", exc)
+            return
+        if args.asr_backend == "funasr":
+            try:
+                text = transcribe_funasr_chunk(funasr_model, args, segment)
+                emit(text)
+            except Exception as exc:
+                logger.error("FunASR transcription failed: %s", exc)
+            return
+        segments, info = model.transcribe(
+            segment,
+            language=None if args.language == "auto" else args.language,
+            vad_filter=args.whisper_vad,
+            beam_size=5,
+        )
+        text = " ".join(segment.text.strip() for segment in segments).strip()
+        emit(text)
+
+    def handle_chunk(chunk: np.ndarray) -> None:
+        nonlocal segment_parts, segment_frames, silence_ms, last_rms_log
+        chunk_rms = rms_energy(chunk)
+        now = time.time()
+        if now - last_rms_log >= args.rms_log_interval:
+            logger.debug(f"Chunk RMS: {chunk_rms:.6f}")
+            last_rms_log = now
+
+        if args.monitor_only:
+            return
+
+        if args.dynamic_chunks and args.asr_backend != "azure":
+            if chunk_rms < args.vad_threshold:
+                if segment_parts:
+                    silence_ms += chunk_ms
+                    segment_ms = (segment_frames / target_rate) * 1000.0
+                    if silence_ms >= args.silence_ms and segment_ms >= args.min_segment_ms:
+                        segment = np.concatenate(segment_parts)
+                        transcribe_segment(segment)
+                        segment_parts = []
+                        segment_frames = 0
+                        silence_ms = 0.0
+                return
+
+            silence_ms = 0.0
+            segment_parts.append(chunk)
+            segment_frames += chunk.shape[0]
+            segment_ms = (segment_frames / target_rate) * 1000.0
+            if segment_ms >= args.max_segment_ms:
+                segment = np.concatenate(segment_parts)
+                transcribe_segment(segment)
+                segment_parts = []
+                segment_frames = 0
+                silence_ms = 0.0
+            return
+
+        if args.vad and chunk_rms < args.vad_threshold:
+            return
+        transcribe_segment(chunk)
     try:
         if backend == "soundcard":
             loopback_mic = resolve_loopback_microphone(dev)
@@ -435,32 +649,7 @@ def main() -> int:
                         else:
                             block = block[:, 0]
                     chunk = resample_linear(block, capture_rate, target_rate)
-                    chunk_rms = rms_energy(chunk)
-                    now = time.time()
-                    if now - last_rms_log >= args.rms_log_interval:
-                        logger.debug(f"Chunk RMS: {chunk_rms:.6f}")
-                        last_rms_log = now
-
-                    if args.monitor_only:
-                        continue
-
-                    if args.vad and chunk_rms < 0.01:
-                        continue
-
-                    if args.asr_backend == "azure":
-                        pcm = np.clip(chunk, -1.0, 1.0)
-                        pcm = (pcm * 32767.0).astype(np.int16)
-                        azure_stream.write(pcm.tobytes())
-                        continue
-
-                    segments, info = model.transcribe(
-                        chunk,
-                        language=None if args.language == "auto" else args.language,
-                        vad_filter=args.whisper_vad,
-                        beam_size=5,
-                    )
-                    text = " ".join(segment.text.strip() for segment in segments).strip()
-                    emit(text)
+                    handle_chunk(chunk)
         else:
             while True:
                 try:
@@ -480,37 +669,17 @@ def main() -> int:
                     buffer = buffer[chunk_frames_capture:]
 
                     chunk = resample_linear(chunk, capture_rate, target_rate)
-
-                    chunk_rms = rms_energy(chunk)
-                    now = time.time()
-                    if now - last_rms_log >= args.rms_log_interval:
-                        logger.debug(f"Chunk RMS: {chunk_rms:.6f}")
-                        last_rms_log = now
-
-                    if args.monitor_only:
-                        continue
-
-                    if args.vad and chunk_rms < 0.01:
-                        continue
-
-                    if args.asr_backend == "azure":
-                        pcm = np.clip(chunk, -1.0, 1.0)
-                        pcm = (pcm * 32767.0).astype(np.int16)
-                        azure_stream.write(pcm.tobytes())
-                        continue
-
-                    segments, info = model.transcribe(
-                        chunk,
-                        language=None if args.language == "auto" else args.language,
-                        vad_filter=args.whisper_vad,
-                        beam_size=5,
-                    )
-                    text = " ".join(segment.text.strip() for segment in segments).strip()
-                    emit(text)
+                    handle_chunk(chunk)
 
     except KeyboardInterrupt:
         logger.info("Stopping...")
     finally:
+        if args.dynamic_chunks and args.asr_backend != "azure" and segment_parts and not args.monitor_only:
+            try:
+                segment = np.concatenate(segment_parts)
+                transcribe_segment(segment)
+            except Exception:
+                pass
         try:
             if stream:
                 stream.stop()

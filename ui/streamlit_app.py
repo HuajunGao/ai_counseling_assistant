@@ -21,13 +21,19 @@ if sys.platform == "win32":
     
     venv_root = os.path.abspath(os.path.join(os.path.dirname(sys.executable), ".."))
     site_packages = os.path.join(venv_root, "Lib", "site-packages")
+    current_path = os.environ.get("PATH", "")
+    
     for rel_path in ("nvidia\\cudnn\\bin", "nvidia\\cublas\\bin"):
         dll_dir = os.path.join(site_packages, rel_path)
         if os.path.isdir(dll_dir):
-            os.add_dll_directory(dll_dir)
-            _CUDA_DLL_DIRS.append(dll_dir)
+            # Only add DLL directory if not already in PATH
+            if dll_dir not in current_path:
+                os.add_dll_directory(dll_dir)
+                _CUDA_DLL_DIRS.append(dll_dir)
+    
+    # Only update PATH if we have new dirs to add (avoid repeated appends)
     if _CUDA_DLL_DIRS:
-        os.environ["PATH"] = ";".join(_CUDA_DLL_DIRS + [os.environ.get("PATH", "")])
+        os.environ["PATH"] = ";".join(_CUDA_DLL_DIRS) + ";" + current_path
 
 import streamlit as st
 import time

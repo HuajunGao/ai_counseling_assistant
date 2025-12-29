@@ -72,6 +72,14 @@ class DualStreamCapture:
     
     def _capture_mic(self):
         """Capture from microphone."""
+        # Initialize COM for this thread on Windows
+        if sys.platform == "win32":
+            try:
+                import pythoncom
+                pythoncom.CoInitialize()
+            except:
+                pass
+        
         mics = sc.all_microphones(include_loopback=False)
         if self.mic_idx >= len(mics):
             logger.error(f"Mic {self.mic_idx} not found")
@@ -93,6 +101,14 @@ class DualStreamCapture:
     
     def _capture_loopback(self):
         """Capture from speaker loopback."""
+        # Initialize COM for this thread on Windows
+        if sys.platform == "win32":
+            try:
+                import pythoncom
+                pythoncom.CoInitialize()
+            except:
+                pass
+        
         speakers = sc.all_speakers()
         if self.loopback_idx >= len(speakers):
             logger.error(f"Speaker {self.loopback_idx} not found")

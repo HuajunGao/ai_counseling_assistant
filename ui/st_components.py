@@ -78,6 +78,48 @@ def control_buttons(is_recording: bool) -> tuple:
     return start_clicked, stop_clicked, clear_clicked
 
 
+def ai_settings_panel(openai_models: list, whisper_models: list, current_whisper: str):
+    """Render AI and transcription settings."""
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        ai_model = st.selectbox(
+            "🤖 AI Model",
+            options=openai_models,
+            key="ai_model_select"
+        )
+    
+    with col2:
+        interval = st.slider(
+            "⏱️ 间隔(秒)",
+            min_value=10,
+            max_value=120,
+            value=30,
+            step=5,
+            key="ai_interval"
+        )
+    
+    with col3:
+        context_len = st.slider(
+            "📝 上下文(行)",
+            min_value=3,
+            max_value=20,
+            value=10,
+            step=1,
+            key="ai_context_len"
+        )
+    
+    with col4:
+        whisper_model = st.selectbox(
+            "🎤 Whisper",
+            options=whisper_models,
+            index=whisper_models.index(current_whisper) if current_whisper in whisper_models else 2,
+            key="whisper_model_select"
+        )
+    
+    return ai_model, interval, context_len, whisper_model
+
+
 def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "blue"):
     """Render a transcript panel with scrollable content."""
     st.markdown(f"**{emoji} {title}**")

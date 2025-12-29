@@ -55,10 +55,12 @@ from ui.st_components import (
     device_selectors,
     level_meters,
     control_buttons,
+    ai_settings_panel,
     transcript_panel,
     ai_suggestions_panel,
     status_indicator
 )
+import config
 
 # Page config
 st.set_page_config(
@@ -121,6 +123,17 @@ if clear_clicked:
     clear_session()
     st.rerun()
 
+# AI Settings panel
+ai_model, ai_interval, ai_context_len, whisper_model = ai_settings_panel(
+    config.OPENAI_MODELS,
+    config.WHISPER_MODELS,
+    config.WHISPER_MODEL_SIZE
+)
+
+# Update suggestion engine with selected model
+if st.session_state.suggestion_engine:
+    st.session_state.suggestion_engine.set_model(ai_model)
+    st.session_state.suggestion_engine.set_context_length(ai_context_len)
 
 # Main content - 3 columns
 col_left, col_center, col_right = st.columns([3, 4, 3])
@@ -140,9 +153,10 @@ if st.session_state.is_recording:
     update_levels()
     process_transcripts()
     
-    # Generate AI suggestion periodically
-    generate_ai_suggestion(interval_seconds=30)
+    # Generate AI suggestion periodically with user-selected interval
+    generate_ai_suggestion(interval_seconds=ai_interval)
     
     # Auto-refresh every 1 second
     time.sleep(1)
     st.rerun()
+

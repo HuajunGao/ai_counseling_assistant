@@ -1,50 +1,75 @@
 import logging
-from typing import List
+import os
+from typing import List, Optional
 
 import config
-from core.llm_providers import create_llm_provider
+from core.llm_providers import create_llm_provider, OpenAIProvider
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def load_system_prompt(filepath: str) -> str:
+    """Load system prompt from file."""
+    try:
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read().strip()
+    except Exception as e:
+        logger.warning(f"Could not load system prompt from {filepath}: {e}")
+    
+    # Default fallback prompt
+    return """You are an expert counseling supervisor and copilot.
+Your goal is to assist the human counselor by providing real-time suggestions.
+Keep suggestions CONCISE (1-2 sentences). Use the same language as the conversation."""
+
+
 class SuggestionEngine:
-    def __init__(self):
-        self.provider = create_llm_provider(config)
-        self.transcript_buffer: List[str] = []
-        self.max_buffer_lines = 20 # Keep last 20 lines for immediate context
+    def __init__(self, model: str = None, context_length: int = None):
+        self.model = model or config.OPENAI_MODEL
+        self.context_length = context_length or config.AI_CONTEXT_LENGTH
+        self.provider = None
+        self.system_prompt = load_system_prompt(config.SYSTEM_PROMPT_FILE)
+        self._init_provider()
+
+    def _init_provider(self):
+        """Initialize or reinitialize the LLM provider."""
+        try:
+            if config.OPENAI_API_KEY:
+                self.provider = OpenAIProvider(
+                    api_key=config.OPENAI_API_KEY,
+                    model=self.model,
+                    base_url=config.OPENAI_BASE_URL or None
+                )
+            else:
+                self.provider = create_llm_provider(config)
+        except Exception as e:
+            logger.error(f"Failed to init LLM provider: {e}")
+            self.provider = None
+
+    def set_model(self, model: str):
+        """Change the model at runtime."""
+        if model != self.model:
+            self.model = model
+            self._init_provider()
+
+    def set_context_length(self, length: int):
+        """Set how many lines of context to use."""
+        self.context_length = length
+
+    def generate_suggestions(self, context: str) -> str:
+        """Generate suggestions based on conversation context."""
+        if not self.provider:
+            return ""
         
-        # System Prompt / Persona
-        self.system_prompt = """
-You are an expert counseling supervisor and copilot. 
-Your goal is to assist the human counselor by providing real-time suggestions based on the conversation transcript.
-Do NOT act as the counselor talking to the client. Act as a whisperer to the counselor.
-
-Output Format:
-1. **Suggested Response**: A gentle, empathetic phrase the counselor could say.
-2. **Suggested Question**: A question to deepen understanding or clarify.
-3. **Observation/Risk**: (Optional) Note any emotional shifts, boundaries, or risks.
-
-Keep suggestions CONCISE (1-2 sentences).
-"""
-
-    def update_transcript(self, text: str):
-        """Append new text to the transcript buffer."""
-        self.transcript_buffer.append(text)
-        if len(self.transcript_buffer) > self.max_buffer_lines:
-            self.transcript_buffer.pop(0)
-
-    def generate_suggestions(self) -> str:
-        """Generate suggestions based on current transcript."""
-        if not self.transcript_buffer:
+        if not context or not context.strip():
             return ""
 
-        transcript_text = "\n".join(self.transcript_buffer)
-        full_prompt = f"{self.system_prompt}\n\nRecent Transcript:\n{transcript_text}\n\nSuggestions:"
+        full_prompt = f"{self.system_prompt}\n\nRecent Conversation:\n{context}\n\nProvide your suggestions:"
         
-        return self.provider.generate(full_prompt)
-
-    def set_provider(self, provider_type: str, api_key: str = None, model: str = None):
-        """Runtime configuration of provider (optional for UI)."""
-        # Logic to switch provider at runtime if needed
-        pass
+        try:
+            return self.provider.generate(full_prompt)
+        except Exception as e:
+            logger.error(f"Failed to generate suggestions: {e}")
+            return ""

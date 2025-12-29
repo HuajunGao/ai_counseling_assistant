@@ -44,12 +44,21 @@ FUNASR_DISABLE_UPDATE = _env_bool("FUNASR_DISABLE_UPDATE", True)
 FUNASR_TRUST_REMOTE_CODE = _env_bool("FUNASR_TRUST_REMOTE_CODE", False)
 
 # LLM Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "ollama") # "ollama", "openai", or "none"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai") # "ollama", "openai", or "none"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+
+# AI Suggestion Settings
+AI_SUGGESTION_INTERVAL = int(os.getenv("AI_SUGGESTION_INTERVAL", "30"))  # seconds
+AI_CONTEXT_LENGTH = int(os.getenv("AI_CONTEXT_LENGTH", "10"))  # lines
+SYSTEM_PROMPT_FILE = os.getenv("SYSTEM_PROMPT_FILE", "prompts/counseling_system.txt")
+
+# Available models for UI selection
+OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
+WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3"]
 
 # Azure Speech (ASR)
 SPEECH_KEY = os.getenv("SPEECH_KEY", "")

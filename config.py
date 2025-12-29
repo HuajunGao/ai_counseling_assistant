@@ -27,7 +27,7 @@ ASR_SILENCE_MS = int(os.getenv("ASR_SILENCE_MS", "600"))
 ASR_MIN_SEGMENT_MS = int(os.getenv("ASR_MIN_SEGMENT_MS", "800"))
 ASR_MAX_SEGMENT_MS = int(os.getenv("ASR_MAX_SEGMENT_MS", "12000"))
 
-WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small")  # tiny/base/small/medium/large-v3
+WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "large-v3")  # tiny/base/small/medium/large-v3
 COMPUTE_TYPE = os.getenv("COMPUTE_TYPE", "float16")  # float16 for GPU, int8 for CPU
 DEVICE = os.getenv("DEVICE", "cuda")  # cuda for GPU, cpu for fallback
 
@@ -49,16 +49,20 @@ OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 # AI Suggestion Settings
-AI_SUGGESTION_INTERVAL = int(os.getenv("AI_SUGGESTION_INTERVAL", "30"))  # seconds
-AI_CONTEXT_LENGTH = int(os.getenv("AI_CONTEXT_LENGTH", "10"))  # lines
+AI_SUGGESTION_INTERVAL = int(os.getenv("AI_SUGGESTION_INTERVAL", "15"))  # seconds
+AI_CONTEXT_LENGTH = int(os.getenv("AI_CONTEXT_LENGTH", "15"))  # lines
 SYSTEM_PROMPT_FILE = os.getenv("SYSTEM_PROMPT_FILE", "prompts/counseling_system.txt")
 
 # Available models for UI selection
 OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
 WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3"]
+ASR_BACKENDS = ["whisper", "openai", "azure"]  # Transcription backend options
+
+# Default device name for auto-selection
+DEFAULT_DEVICE_NAME = os.getenv("DEFAULT_DEVICE_NAME", "Echo Cancelling Speakerphone")
 
 # Azure Speech (ASR)
 SPEECH_KEY = os.getenv("SPEECH_KEY", "")

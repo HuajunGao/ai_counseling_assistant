@@ -174,3 +174,18 @@ def clear_session():
     st.session_state.my_transcript = []
     st.session_state.other_transcript = []
     st.session_state.ai_suggestions = []
+    
+    # Also clear pending queues
+    if 'mic_output_queue' in st.session_state:
+        while not st.session_state.mic_output_queue.empty():
+            try:
+                st.session_state.mic_output_queue.get_nowait()
+            except:
+                break
+                
+    if 'loopback_output_queue' in st.session_state:
+        while not st.session_state.loopback_output_queue.empty():
+            try:
+                st.session_state.loopback_output_queue.get_nowait()
+            except:
+                break

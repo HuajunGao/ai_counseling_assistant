@@ -4,27 +4,44 @@ Reusable Streamlit UI components.
 import streamlit as st
 
 
-def device_selectors(devices: dict) -> tuple:
+def device_selectors(devices: dict, default_name: str = "") -> tuple:
     """
     Render device selection dropdowns.
     Returns (mic_idx, speaker_idx).
     """
     col1, col2 = st.columns(2)
     
+    # Find default indices based on device name
+    default_mic = 0
+    default_speaker = 0
+    if default_name:
+        for m in devices['mics']:
+            if default_name.lower() in m['name'].lower():
+                default_mic = m['id']
+                break
+        for s in devices['speakers']:
+            if default_name.lower() in s['name'].lower():
+                default_speaker = s['id']
+                break
+    
     with col1:
         mic_options = {m['id']: f"🎤 {m['name'][:35]}" for m in devices['mics']}
+        mic_ids = list(mic_options.keys())
         mic_idx = st.selectbox(
             "麦克风 (我)",
-            options=list(mic_options.keys()),
+            options=mic_ids,
+            index=mic_ids.index(default_mic) if default_mic in mic_ids else 0,
             format_func=lambda x: mic_options[x],
             key="mic_select"
         )
     
     with col2:
         speaker_options = {s['id']: f"🔊 {s['name'][:35]}" for s in devices['speakers']}
+        speaker_ids = list(speaker_options.keys())
         speaker_idx = st.selectbox(
             "扬声器 (对方)",
-            options=list(speaker_options.keys()),
+            options=speaker_ids,
+            index=speaker_ids.index(default_speaker) if default_speaker in speaker_ids else 0,
             format_func=lambda x: speaker_options[x],
             key="speaker_select"
         )
@@ -36,13 +53,29 @@ def level_meters(mic_rms: float, loopback_rms: float):
     """Render audio level meters."""
     col1, col2 = st.columns(2)
     
+    # Convert RMS to percentage (0-100)
+    mic_pct = min(int(mic_rms * 1000), 100)
+    speaker_pct = min(int(loopback_rms * 1000), 100)
+    
     with col1:
-        st.caption("🎤 Mic Level")
-        st.progress(min(mic_rms * 10, 1.0))
+        st.markdown(f"""
+        <div style='margin-bottom: 5px;'>
+            <span style='font-size: 0.8em;'>🎤 Mic</span>
+            <div style='background: #333; border-radius: 4px; height: 12px; width: 100%;'>
+                <div style='background: linear-gradient(90deg, #22c55e, #86efac); width: {mic_pct}%; height: 100%; border-radius: 4px; transition: width 0.1s;'></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     
     with col2:
-        st.caption("🔊 Speaker Level")
-        st.progress(min(loopback_rms * 10, 1.0))
+        st.markdown(f"""
+        <div style='margin-bottom: 5px;'>
+            <span style='font-size: 0.8em;'>🔊 Speaker</span>
+            <div style='background: #333; border-radius: 4px; height: 12px; width: 100%;'>
+                <div style='background: linear-gradient(90deg, #3b82f6, #93c5fd); width: {speaker_pct}%; height: 100%; border-radius: 4px; transition: width 0.1s;'></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def control_buttons(is_recording: bool) -> tuple:
@@ -53,8 +86,9 @@ def control_buttons(is_recording: bool) -> tuple:
     col1, col2, col3 = st.columns([1, 1, 1])
     
     with col1:
+        label = "🔴 正在录制..." if is_recording else "▶️ 开始录制"
         start_clicked = st.button(
-            "▶️ 开始录制",
+            label,
             type="primary",
             disabled=is_recording,
             use_container_width=True
@@ -78,14 +112,15 @@ def control_buttons(is_recording: bool) -> tuple:
     return start_clicked, stop_clicked, clear_clicked
 
 
-def ai_settings_panel(openai_models: list, whisper_models: list, current_whisper: str):
+def ai_settings_panel(openai_models: list, whisper_models: list, asr_backends: list, current_whisper: str, current_ai_model: str):
     """Render AI and transcription settings."""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         ai_model = st.selectbox(
             "🤖 AI Model",
             options=openai_models,
+            index=openai_models.index(current_ai_model) if current_ai_model in openai_models else 0,
             key="ai_model_select"
         )
     
@@ -94,7 +129,7 @@ def ai_settings_panel(openai_models: list, whisper_models: list, current_whisper
             "⏱️ 间隔(秒)",
             min_value=10,
             max_value=120,
-            value=30,
+            value=15,
             step=5,
             key="ai_interval"
         )
@@ -104,20 +139,28 @@ def ai_settings_panel(openai_models: list, whisper_models: list, current_whisper
             "📝 上下文(行)",
             min_value=3,
             max_value=20,
-            value=10,
+            value=15,
             step=1,
             key="ai_context_len"
         )
     
     with col4:
+        asr_backend = st.selectbox(
+            "🎯 转录后端",
+            options=asr_backends,
+            key="asr_backend_select"
+        )
+    
+    with col5:
         whisper_model = st.selectbox(
             "🎤 Whisper",
             options=whisper_models,
-            index=whisper_models.index(current_whisper) if current_whisper in whisper_models else 2,
-            key="whisper_model_select"
+            index=whisper_models.index(current_whisper) if current_whisper in whisper_models else 4,
+            key="whisper_model_select",
+            disabled=(asr_backend != "whisper")
         )
     
-    return ai_model, interval, context_len, whisper_model
+    return ai_model, interval, context_len, asr_backend, whisper_model
 
 
 def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "blue"):

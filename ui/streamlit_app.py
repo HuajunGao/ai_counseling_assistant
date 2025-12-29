@@ -99,14 +99,10 @@ st.markdown("## 🎙️ AI Counseling Copilot")
 
 # Device selection and controls
 devices = get_devices()
-mic_idx, speaker_idx = device_selectors(devices)
+mic_idx, speaker_idx = device_selectors(devices, config.DEFAULT_DEVICE_NAME)
 
-# Level meters and status
-col_levels, col_status = st.columns([2, 1])
-with col_levels:
-    level_meters(st.session_state.mic_rms, st.session_state.loopback_rms)
-with col_status:
-    status_indicator(st.session_state.is_recording)
+# Level meters
+level_meters(st.session_state.mic_rms, st.session_state.loopback_rms)
 
 # Control buttons
 start_clicked, stop_clicked, clear_clicked = control_buttons(st.session_state.is_recording)
@@ -124,10 +120,12 @@ if clear_clicked:
     st.rerun()
 
 # AI Settings panel
-ai_model, ai_interval, ai_context_len, whisper_model = ai_settings_panel(
+ai_model, ai_interval, ai_context_len, asr_backend, whisper_model = ai_settings_panel(
     config.OPENAI_MODELS,
     config.WHISPER_MODELS,
-    config.WHISPER_MODEL_SIZE
+    config.ASR_BACKENDS,
+    config.WHISPER_MODEL_SIZE,
+    config.OPENAI_MODEL
 )
 
 # Update suggestion engine with selected model

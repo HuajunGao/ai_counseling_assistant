@@ -28,13 +28,10 @@ dev = [
 # Main Streamlit app
 app = "streamlit.web.cli:main"
 
-[tool.uv.scripts]
-# Shorthand commands for common tasks
-app = "streamlit run ui/streamlit_app.py"
-transcribe = "python output_transcription/transcribe_output.py"
-nicegui = "python main.py"
-lint = "ruff check ."
-format = "ruff format ."
+# Run commands directly:
+#   uv run streamlit run ui/streamlit_app.py  - Start main app
+#   uv run ruff check .                       - Lint code
+#   uv run ruff format .                      - Format code
 
 [tool.ruff]
 line-length = 120

@@ -59,7 +59,7 @@ def configure_logging(level: str) -> None:
     logging.basicConfig(
         level=numeric_level,
         format="%(asctime)s | %(levelname)s | %(message)s",
-    ) 
+    )
 
 
 def list_devices(backend: str) -> None:
@@ -194,7 +194,8 @@ def resample_linear(signal: np.ndarray, src_rate: int, dst_rate: int) -> np.ndar
 def rms_energy(signal: np.ndarray) -> float:
     if signal.size == 0:
         return 0.0
-    return float(np.sqrt(np.mean(signal ** 2)))
+    return float(np.sqrt(np.mean(signal**2)))
+
 
 def create_output_writer(args):
     file_handle = None
@@ -217,9 +218,12 @@ def create_output_writer(args):
 
     return emit, file_handle
 
+
 def load_local_model(model_name: str, device: str, compute_type: str):
     from faster_whisper import WhisperModel
+
     return WhisperModel(model_name, device=device, compute_type=compute_type)
+
 
 def init_azure_recognizer(args, emit):
     try:
@@ -254,9 +258,7 @@ def init_azure_recognizer(args, emit):
 
     auto_lang = None
     if args.language == "auto":
-        auto_lang = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(
-            languages=["zh-CN", "en-US"]
-        )
+        auto_lang = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["zh-CN", "en-US"])
 
     if auto_lang:
         recognizer = speechsdk.SpeechRecognizer(
@@ -275,15 +277,14 @@ def init_azure_recognizer(args, emit):
             emit(evt.result.text)
 
     def on_canceled(evt):
-        logging.getLogger("loopback_transcriber").warning(
-            "Azure canceled: %s", evt.reason
-        )
+        logging.getLogger("loopback_transcriber").warning("Azure canceled: %s", evt.reason)
 
     recognizer.recognized.connect(on_recognized)
     recognizer.canceled.connect(on_canceled)
     recognizer.start_continuous_recognition()
 
     return recognizer, push_stream
+
 
 def init_openai_client(args):
     try:
@@ -299,6 +300,7 @@ def init_openai_client(args):
     if base_url:
         return OpenAI(api_key=api_key, base_url=base_url)
     return OpenAI(api_key=api_key)
+
 
 def init_funasr_model(args):
     try:
@@ -319,6 +321,7 @@ def init_funasr_model(args):
         model_kwargs["punc_model"] = args.funasr_punc_model
     return AutoModel(**model_kwargs)
 
+
 def transcribe_funasr_chunk(model, args, chunk: np.ndarray) -> str:
     if chunk.size == 0:
         return ""
@@ -329,6 +332,7 @@ def transcribe_funasr_chunk(model, args, chunk: np.ndarray) -> str:
         text = " ".join((item.get("text") or "").strip() for item in result if isinstance(item, dict))
         return text.strip()
     return ""
+
 
 def transcribe_openai_chunk(client, args, chunk: np.ndarray, sample_rate: int) -> str:
     if chunk.size == 0:
@@ -346,12 +350,14 @@ def transcribe_openai_chunk(client, args, chunk: np.ndarray, sample_rate: int) -
     )
     return (response.text or "").strip()
 
+
 def wasapi_supports_loopback() -> bool:
     try:
         sig = inspect.signature(sd.WasapiSettings)
         return "loopback" in sig.parameters
     except Exception:
         return False
+
 
 def resolve_backend(requested: str) -> str:
     if requested == "auto":
@@ -361,9 +367,7 @@ def resolve_backend(requested: str) -> str:
 
 def main() -> int:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Transcribe system output audio via WASAPI loopback (Windows)."
-    )
+    parser = argparse.ArgumentParser(description="Transcribe system output audio via WASAPI loopback (Windows).")
     parser.add_argument("--list-devices", action="store_true", help="List devices and exit")
     parser.add_argument("--device", help="Output device name substring or numeric id")
     parser.add_argument("--device-id", type=int, help="Output device id")
@@ -389,8 +393,12 @@ def main() -> int:
     parser.add_argument("--asr-device", default="auto", help="ASR device: auto/cpu/cuda")
     parser.add_argument("--compute-type", default="auto", help="ASR compute type: auto/int8/float16/etc")
     parser.add_argument("--monitor-only", action="store_true", help="Only monitor loopback RMS without ASR")
-    parser.add_argument("--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend")
-    parser.add_argument("--asr-backend", default="local", choices=["local", "azure", "openai", "funasr"], help="ASR backend")
+    parser.add_argument(
+        "--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend"
+    )
+    parser.add_argument(
+        "--asr-backend", default="local", choices=["local", "azure", "openai", "funasr"], help="ASR backend"
+    )
     parser.add_argument("--speech-key", help="Azure Speech key (or SPEECH_KEY env)")
     parser.add_argument("--speech-region", help="Azure Speech region (or SPEECH_REGION env)")
     parser.add_argument("--speech-endpoint", help="Azure Speech endpoint (or SPEECH_ENDPOINT env)")
@@ -440,9 +448,7 @@ def main() -> int:
         hostapis = sd.query_hostapis()
         hostapi_name = hostapis[dev["hostapi"]]["name"]
         if "WASAPI" not in hostapi_name.upper():
-            logger.error(
-                "Selected device is not on Windows WASAPI. Choose a WASAPI output device."
-            )
+            logger.error("Selected device is not on Windows WASAPI. Choose a WASAPI output device.")
             return 2
 
         if not hasattr(sd, "WasapiSettings"):
@@ -635,6 +641,7 @@ def main() -> int:
         if args.vad and chunk_rms < args.vad_threshold:
             return
         transcribe_segment(chunk)
+
     try:
         if backend == "soundcard":
             loopback_mic = resolve_loopback_microphone(dev)

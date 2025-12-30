@@ -2,6 +2,7 @@
 AI Counseling Copilot - Streamlit Application
 Main entry point for the Streamlit UI.
 """
+
 # DLL path setup for Windows - MUST be before any torch imports
 import os
 import sys
@@ -15,14 +16,15 @@ if sys.platform == "win32":
     # Initialize COM for Windows audio APIs (required by soundcard library)
     try:
         import pythoncom
+
         pythoncom.CoInitialize()
     except ImportError:
         pass
-    
+
     venv_root = os.path.abspath(os.path.join(os.path.dirname(sys.executable), ".."))
     site_packages = os.path.join(venv_root, "Lib", "site-packages")
     current_path = os.environ.get("PATH", "")
-    
+
     for rel_path in ("nvidia\\cudnn\\bin", "nvidia\\cublas\\bin"):
         dll_dir = os.path.join(site_packages, rel_path)
         if os.path.isdir(dll_dir):
@@ -30,7 +32,7 @@ if sys.platform == "win32":
             if dll_dir not in current_path:
                 os.add_dll_directory(dll_dir)
                 _CUDA_DLL_DIRS.append(dll_dir)
-    
+
     # Only update PATH if we have new dirs to add (avoid repeated appends)
     if _CUDA_DLL_DIRS:
         os.environ["PATH"] = ";".join(_CUDA_DLL_DIRS) + ";" + current_path
@@ -49,7 +51,7 @@ from ui.st_session import (
     update_levels,
     process_transcripts,
     generate_ai_suggestion,
-    clear_session
+    clear_session,
 )
 from ui.st_components import (
     device_selectors,
@@ -58,20 +60,16 @@ from ui.st_components import (
     ai_settings_panel,
     transcript_panel,
     ai_suggestions_panel,
-    status_indicator
+    status_indicator,
 )
 import config
 
 # Page config
-st.set_page_config(
-    page_title="AI Counseling Copilot",
-    page_icon="🎙️",
-    layout="wide",
-    initial_sidebar_state="collapsed"
-)
+st.set_page_config(page_title="AI Counseling Copilot", page_icon="🎙️", layout="wide", initial_sidebar_state="collapsed")
 
 # Custom CSS for compact layout that fills viewport
-st.markdown("""
+st.markdown(
+    """
 <style>
     .main > div {
         padding-top: 0.5rem;
@@ -89,7 +87,9 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 # Initialize session state
 init_session_state()
@@ -121,11 +121,7 @@ if clear_clicked:
 
 # AI Settings panel
 ai_model, ai_interval, ai_context_len, asr_backend, whisper_model = ai_settings_panel(
-    config.OPENAI_MODELS,
-    config.WHISPER_MODELS,
-    config.ASR_BACKENDS,
-    config.WHISPER_MODEL_SIZE,
-    config.OPENAI_MODEL
+    config.OPENAI_MODELS, config.WHISPER_MODELS, config.ASR_BACKENDS, config.WHISPER_MODEL_SIZE, config.OPENAI_MODEL
 )
 
 # Update suggestion engine with selected model
@@ -156,11 +152,10 @@ if st.session_state.is_recording:
     # Update levels and process transcripts
     update_levels()
     process_transcripts()
-    
+
     # Generate AI suggestion periodically with user-selected interval
     generate_ai_suggestion(interval_seconds=ai_interval)
-    
+
     # Auto-refresh every 1 second
     time.sleep(1)
     st.rerun()
-

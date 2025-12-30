@@ -10,6 +10,7 @@ def _env_bool(name: str, default: bool) -> bool:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
+
 # Audio Configuration
 SAMPLE_RATE = 16000
 CHANNELS = 1
@@ -45,7 +46,7 @@ FUNASR_DISABLE_UPDATE = _env_bool("FUNASR_DISABLE_UPDATE", True)
 FUNASR_TRUST_REMOTE_CODE = _env_bool("FUNASR_TRUST_REMOTE_CODE", False)
 
 # LLM Configuration
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai") # "ollama", "openai", or "none"
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai")  # "ollama", "openai", or "none"
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

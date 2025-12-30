@@ -8,6 +8,7 @@ from typing import List, Optional, Tuple
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class AudioCapture:
     def __init__(self, audio_queue=None, sample_rate=16000, native_sample_rate=None, channels=1, block_size=4096):
         self.sample_rate = sample_rate
@@ -19,15 +20,19 @@ class AudioCapture:
         self.audio_queue = audio_queue if audio_queue is not None else queue.Queue()
         self.stream: Optional[sd.InputStream] = None
         self.running = False
-        
+
         # Simple integer decimation check
         self.decimation_factor = 1
         if self.native_sample_rate != self.sample_rate:
             if self.native_sample_rate % self.sample_rate == 0:
                 self.decimation_factor = int(self.native_sample_rate // self.sample_rate)
-                logger.info(f"Resampling enabled: Native {self.native_sample_rate}Hz -> Target {self.sample_rate}Hz (Decimation factor: {self.decimation_factor})")
+                logger.info(
+                    f"Resampling enabled: Native {self.native_sample_rate}Hz -> Target {self.sample_rate}Hz (Decimation factor: {self.decimation_factor})"
+                )
             else:
-                logger.warning(f"Complex resampling ({self.native_sample_rate}->{self.sample_rate}) requested but not implemented. Using native rate (Whisper might fail).")
+                logger.warning(
+                    f"Complex resampling ({self.native_sample_rate}->{self.sample_rate}) requested but not implemented. Using native rate (Whisper might fail)."
+                )
                 self.decimation_factor = 1
 
     def list_devices(self) -> List[dict]:
@@ -35,40 +40,42 @@ class AudioCapture:
         devices = sd.query_devices()
         input_devices = []
         for i, dev in enumerate(devices):
-            if dev['max_input_channels'] > 0:
-                input_devices.append({
-                    'id': i,
-                    'name': dev['name'],
-                    'hostapi': dev['hostapi'],
-                    'max_input_channels': dev['max_input_channels']
-                })
+            if dev["max_input_channels"] > 0:
+                input_devices.append(
+                    {
+                        "id": i,
+                        "name": dev["name"],
+                        "hostapi": dev["hostapi"],
+                        "max_input_channels": dev["max_input_channels"],
+                    }
+                )
         return input_devices
 
     def _callback(self, indata, frames, time, status):
         """Callback for sounddevice stream."""
         if status:
             logger.warning(f"Audio callback status: {status}")
-        
+
         if self.running:
             # Copy data to avoid buffer issues, flatten if necessary
             # faster-whisper expects float32
             # Apply decimation if configured
             data = indata.copy()
-            
+
             # Apply decimation if configured
             data = indata.copy()
-            
+
             # Diagnostic: Check volume levels once per second-ish
             if data.size > 0:
                 rms = np.sqrt(np.mean(data**2))
-                if rms > 0.001 and np.random.rand() < 0.05: # Log occasionally when sound is present
-                     logger.info(f"Audio Level (RMS): {rms:.4f}")
-                elif np.random.rand() < 0.005: # Log occasionally even if silent
-                     logger.info(f"Audio Level (RMS-SILENCE): {rms:.6f}")
-            
+                if rms > 0.001 and np.random.rand() < 0.05:  # Log occasionally when sound is present
+                    logger.info(f"Audio Level (RMS): {rms:.4f}")
+                elif np.random.rand() < 0.005:  # Log occasionally even if silent
+                    logger.info(f"Audio Level (RMS-SILENCE): {rms:.6f}")
+
             if self.decimation_factor > 1:
-                data = data[::self.decimation_factor]
-            
+                data = data[:: self.decimation_factor]
+
             self.audio_queue.put(data)
 
     def start_stream(self, device_id: int):
@@ -84,7 +91,7 @@ class AudioCapture:
                 channels=self.channels,
                 blocksize=self.block_size,
                 callback=self._callback,
-                dtype="float32"
+                dtype="float32",
             )
             self.stream.start()
             self.running = True

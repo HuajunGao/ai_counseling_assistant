@@ -5,6 +5,7 @@ This simulates: Zoom using mic + Script using the same mic.
 Usage:
   python tests/test_shared_mic.py --mic 0
 """
+
 import argparse
 import threading
 import time
@@ -25,7 +26,7 @@ except ImportError:
 def capture_audio(name: str, mic, duration: float, sample_rate: int = 16000, results: dict = None):
     """Simulate a process capturing from the microphone."""
     print(f"[{name}] Starting capture on: {mic.name}")
-    
+
     success = False
     try:
         with mic.recorder(samplerate=sample_rate, channels=1) as recorder:
@@ -36,7 +37,7 @@ def capture_audio(name: str, mic, duration: float, sample_rate: int = 16000, res
                 if chunk.ndim == 2:
                     chunk = np.mean(chunk, axis=1)
                 rms = float(np.sqrt(np.mean(chunk**2)))
-                
+
                 # Only print every few iterations to reduce noise
                 count += 1
                 if count % 3 == 0:
@@ -45,7 +46,7 @@ def capture_audio(name: str, mic, duration: float, sample_rate: int = 16000, res
             success = True
     except Exception as e:
         print(f"[{name}] ERROR: {e}")
-    
+
     if results is not None:
         results[name] = success
     print(f"[{name}] Done. {'✅' if success else '❌'}")
@@ -57,43 +58,43 @@ def main():
     parser.add_argument("--mic", type=int, default=0, help="Microphone device index")
     parser.add_argument("--duration", "-t", type=float, default=5.0, help="Duration (seconds)")
     args = parser.parse_args()
-    
+
     mics = sc.all_microphones(include_loopback=False)
-    
+
     if args.list:
         print("\n=== Microphones ===")
         for idx, m in enumerate(mics):
             print(f"  {idx}: {m.name}")
         return
-    
+
     if args.mic >= len(mics):
-        print(f"Error: Mic index {args.mic} out of range (0-{len(mics)-1})")
+        print(f"Error: Mic index {args.mic} out of range (0-{len(mics) - 1})")
         return
-    
+
     mic = mics[args.mic]
-    
+
     print(f"\n=== Testing Shared Mic Access ===")
     print(f"Microphone: [{args.mic}] {mic.name}")
     print(f"Duration: {args.duration}s")
     print()
     print("Starting TWO 'processes' reading from the SAME microphone...")
     print("-" * 50)
-    
+
     results = {}
-    
+
     # Start two "processes" (threads) reading from the same mic
     t1 = threading.Thread(target=capture_audio, args=("PROCESS_1", mic, args.duration, 16000, results))
     t2 = threading.Thread(target=capture_audio, args=("PROCESS_2", mic, args.duration, 16000, results))
-    
+
     t1.start()
     time.sleep(0.3)  # Slight delay
     t2.start()
-    
+
     t1.join()
     t2.join()
-    
+
     print("-" * 50)
-    
+
     if results.get("PROCESS_1") and results.get("PROCESS_2"):
         print("\n✅ SUCCESS: Both processes captured audio from the same microphone!")
         print("You CAN use the mic with Zoom/Teams AND this script simultaneously.")
@@ -105,4 +106,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

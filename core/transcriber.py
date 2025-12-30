@@ -11,6 +11,7 @@ from core.asr_providers import create_asr_provider
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 class SileroVAD:
     def __init__(self, threshold=0.5):
         self.model = None
@@ -24,16 +25,11 @@ class SileroVAD:
             # Load Silero VAD from torch hub
             # process_trust_remote_code=True is needed for recent torch versions
             self.model, self.utils = torch.hub.load(
-                repo_or_dir='snakers4/silero-vad',
-                model='silero_vad',
-                force_reload=False,
-                trust_repo=True
+                repo_or_dir="snakers4/silero-vad", model="silero_vad", force_reload=False, trust_repo=True
             )
-            (self.get_speech_timestamps,
-             self.save_audio,
-             self.read_audio,
-             self.VADIterator,
-             self.collect_chunks) = self.utils
+            (self.get_speech_timestamps, self.save_audio, self.read_audio, self.VADIterator, self.collect_chunks) = (
+                self.utils
+            )
             self.model.eval()
             logger.info("Silero VAD model loaded successfully.")
         except Exception as e:
@@ -47,51 +43,51 @@ class SileroVAD:
 
             # Silero VAD v4+ requires processing in fixed chunks of 512 samples (for 16k) or 256 (for 8k)
             # We must iterate over the incoming chunk
-            
+
             target_chunk_len = 512 if sample_rate == 16000 else 256
-            
+
             # Ensure contiguous and tensor conversion
-            if not audio_chunk.flags['C_CONTIGUOUS']:
+            if not audio_chunk.flags["C_CONTIGUOUS"]:
                 audio_chunk = np.ascontiguousarray(audio_chunk)
-                
+
             # Flatten to 1D
             audio_chunk = audio_chunk.flatten()
-            
-            # We can batch this or loop. 
+
+            # We can batch this or loop.
             # For simplicity and handling RNN state correctly (though we reset often here or share state?),
-            # The simple model() call is usually stateless or resets. 
+            # The simple model() call is usually stateless or resets.
             # Actually, Silero VAD is stateful.
             # But here we are just checking "is this block speech?".
             # We will process subs-chunks and if average prob > threshold we return True.
-            
+
             num_samples = len(audio_chunk)
             # Pad if needed to match multiple of target_chunk_len, or just drop remainder
             # Dropping remainder is fine for VAD trigger purpose
-            
+
             num_windows = num_samples // target_chunk_len
             if num_windows == 0:
-                pass # Chunk too small, maybe fallback or just return False
-            
+                pass  # Chunk too small, maybe fallback or just return False
+
             speech_probs = []
-            
-            # Reset model state (if exposed) or just feed. 
+
+            # Reset model state (if exposed) or just feed.
             # Note: Using model(x, sr) usually updates internal state.
             # Ideally we should keep state between external chunks, but Transcriber resets often.
             # For now, let's just feed sub-chunks.
-            
+
             tensor_chunk = torch.from_numpy(audio_chunk)
-            
+
             with torch.no_grad():
                 for i in range(0, num_windows * target_chunk_len, target_chunk_len):
-                    window = tensor_chunk[i:i+target_chunk_len]
+                    window = tensor_chunk[i : i + target_chunk_len]
                     if window.ndim == 1:
                         window = window.unsqueeze(0)
                     prob = self.model(window, sample_rate).item()
                     speech_probs.append(prob)
-            
+
             if not speech_probs:
                 return False
-                
+
             # Decision: if max prob > threshold, or average?
             # Max prob is safer to trigger speech.
             return max(speech_probs) >= self.threshold
@@ -102,6 +98,7 @@ class SileroVAD:
             # traceback.print_exc()
             return rms_energy(audio_chunk) > 0.01
 
+
 class Transcriber(threading.Thread):
     def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, args_config=None):
         super().__init__()
@@ -109,9 +106,9 @@ class Transcriber(threading.Thread):
         self.output_queue = output_queue
         self.running = False
         self.provider = None
-        
+
         # Allow overriding config with args passed from CLI
-        self.config = config # Default global config
+        self.config = config  # Default global config
         # (TODO: minimal args support could be added here if we passed an object)
 
         # Audio buffer configuration
@@ -122,9 +119,9 @@ class Transcriber(threading.Thread):
 
         # VAD/dynamic chunking
         self.vad_enabled = config.ASR_VAD_ENABLED
-        self.vad_threshold = getattr(config, 'ASR_VAD_THRESHOLD', 0.01) # Default to config or low fallback
-        self.silero_threshold = 0.4 # Default for Silero
-        
+        self.vad_threshold = getattr(config, "ASR_VAD_THRESHOLD", 0.01)  # Default to config or low fallback
+        self.silero_threshold = 0.4  # Default for Silero
+
         self.dynamic_chunks = config.ASR_DYNAMIC_CHUNKS
         self.silence_ms = config.ASR_SILENCE_MS
         self.min_segment_ms = config.ASR_MIN_SEGMENT_MS
@@ -132,7 +129,7 @@ class Transcriber(threading.Thread):
         self.silence_accum_ms = 0.0
         self.segment_parts = []
         self.segment_frames = 0
-        
+
         # Context Management
         self.last_text = ""
         self.vad_model = None
@@ -143,7 +140,7 @@ class Transcriber(threading.Thread):
         try:
             self.provider = create_asr_provider(self.config)
             logger.info("ASR provider loaded: %s", self.config.ASR_BACKEND)
-            
+
             if self.vad_enabled:
                 logger.info("Loading Silero VAD...")
                 self.vad_model = SileroVAD(threshold=self.silero_threshold)
@@ -163,7 +160,7 @@ class Transcriber(threading.Thread):
                     self.punc_kwargs = getattr(model, "kwargs", {})
                 except Exception as exc:
                     logger.warning("Failed to load punctuation model: %s", exc)
-                
+
         except Exception as e:
             logger.error(f"Error loading ASR provider or VAD: {e}")
             raise
@@ -172,7 +169,7 @@ class Transcriber(threading.Thread):
         self.load_model()
         self.running = True
         logger.info(f"Transcriber started. Dynamic Chunks: {self.dynamic_chunks}, VAD: {self.vad_enabled}")
-        
+
         while self.running:
             try:
                 # Get all available chunks
@@ -183,7 +180,7 @@ class Transcriber(threading.Thread):
                         chunks.append(chunk)
                     except queue.Empty:
                         break
-                
+
                 if chunks:
                     data = np.concatenate(chunks)
                     self.audio_buffer = np.concatenate((self.audio_buffer, data))
@@ -193,8 +190,8 @@ class Transcriber(threading.Thread):
                     self.audio_buffer = self.audio_buffer[self.chunk_frames :]
                     self.handle_chunk(chunk)
 
-                time.sleep(0.01) # Reduced sleep for better responsiveness
-                
+                time.sleep(0.01)  # Reduced sleep for better responsiveness
+
             except Exception as e:
                 logger.error(f"Error in transcription loop: {e}")
                 time.sleep(1)
@@ -202,11 +199,11 @@ class Transcriber(threading.Thread):
     def is_speech(self, chunk: np.ndarray) -> bool:
         if not self.vad_enabled:
             return True
-        
+
         # Use Silero if available
         if self.vad_model:
             return self.vad_model.is_speech(chunk, self.sample_rate)
-        
+
         # Fallback to RMS
         return rms_energy(chunk) > self.vad_threshold
 
@@ -220,7 +217,7 @@ class Transcriber(threading.Thread):
                 if self.segment_parts:
                     self.silence_accum_ms += self.chunk_ms
                     segment_ms = (self.segment_frames / self.sample_rate) * 1000.0
-                    
+
                     # If silence is long enough AND segment is long enough -> Commit
                     if self.silence_accum_ms >= self.silence_ms and segment_ms >= self.min_segment_ms:
                         segment = np.concatenate(self.segment_parts)
@@ -234,7 +231,7 @@ class Transcriber(threading.Thread):
             self.segment_parts.append(chunk)
             self.segment_frames += chunk.shape[0]
             segment_ms = (self.segment_frames / self.sample_rate) * 1000.0
-            
+
             # If segment is too long, force commit
             if segment_ms >= self.max_segment_ms:
                 segment = np.concatenate(self.segment_parts)
@@ -259,9 +256,7 @@ class Transcriber(threading.Thread):
 
         if text.strip() and self.punc_model is not None and not _has_punctuation(text):
             try:
-                punc_res = self.punc_model.inference(
-                    text, model=self.punc_model.model, kwargs=self.punc_kwargs
-                )
+                punc_res = self.punc_model.inference(text, model=self.punc_model.model, kwargs=self.punc_kwargs)
                 if isinstance(punc_res, list) and punc_res:
                     punc_text = (punc_res[0].get("text") or "").strip()
                     if punc_text:
@@ -272,7 +267,7 @@ class Transcriber(threading.Thread):
         if text.strip():
             # Update last_text for next context (keep it simple, maybe just the last sentence)
             self.last_text = text.strip()
-            
+
             self.output_queue.put(
                 {
                     "type": "commit",
@@ -296,10 +291,11 @@ class Transcriber(threading.Thread):
             except Exception:
                 pass
 
+
 def rms_energy(signal: np.ndarray) -> float:
     if signal.size == 0:
         return 0.0
-    return float(np.sqrt(np.mean(signal ** 2)))
+    return float(np.sqrt(np.mean(signal**2)))
 
 
 def _has_punctuation(text: str) -> bool:

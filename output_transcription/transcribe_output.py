@@ -64,7 +64,7 @@ def configure_logging(level: str) -> None:
     logging.basicConfig(
         level=numeric_level,
         format="%(asctime)s | %(levelname)s | %(message)s",
-    ) 
+    )
 
 
 def list_devices(backend: str) -> None:
@@ -235,9 +235,7 @@ def resolve_backend(requested: str) -> str:
 
 def main() -> int:
     load_dotenv()
-    parser = argparse.ArgumentParser(
-        description="Transcribe system output audio via WASAPI loopback (Windows)."
-    )
+    parser = argparse.ArgumentParser(description="Transcribe system output audio via WASAPI loopback (Windows).")
     parser.add_argument("--list-devices", action="store_true", help="List devices and exit")
     parser.add_argument("--device", help="Output device name substring or numeric id")
     parser.add_argument("--device-id", type=int, help="Output device id")
@@ -262,9 +260,13 @@ def main() -> int:
     parser.add_argument("--asr-device", default=None, help="ASR device: auto/cpu/cuda")
     parser.add_argument("--compute-type", default=None, help="ASR compute type")
     parser.add_argument("--monitor-only", action="store_true", help="Only monitor loopback RMS")
-    parser.add_argument("--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend")
-    parser.add_argument("--asr-backend", default="local", choices=["local", "azure", "openai", "funasr"], help="ASR backend")
-    
+    parser.add_argument(
+        "--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend"
+    )
+    parser.add_argument(
+        "--asr-backend", default="local", choices=["local", "azure", "openai", "funasr"], help="ASR backend"
+    )
+
     # Provider specific
     parser.add_argument("--openai-model", help="OpenAI transcription model")
     parser.add_argument("--funasr-model", help="FunASR model name")
@@ -285,28 +287,42 @@ def main() -> int:
 
     configure_logging(args.log_level)
     logger = logging.getLogger("loopback_transcriber")
-    
+
     # --------------------------------------------------------------------------
     # Update Config from Args
     # --------------------------------------------------------------------------
-    if args.model: config.WHISPER_MODEL_SIZE = args.model
-    if args.language: config.ASR_LANGUAGE = args.language
-    if args.chunk_ms: config.ASR_CHUNK_MS = args.chunk_ms
-    if args.vad is not None: config.ASR_VAD_ENABLED = args.vad
-    if args.vad_threshold is not None: config.ASR_VAD_THRESHOLD = args.vad_threshold
-    if args.dynamic_chunks is not None: config.ASR_DYNAMIC_CHUNKS = args.dynamic_chunks
-    if args.silence_ms: config.ASR_SILENCE_MS = args.silence_ms
-    if args.min_segment_ms: config.ASR_MIN_SEGMENT_MS = args.min_segment_ms
-    if args.max_segment_ms: config.ASR_MAX_SEGMENT_MS = args.max_segment_ms
-    if args.asr_backend: config.ASR_BACKEND = args.asr_backend
-    if args.asr_device: 
+    if args.model:
+        config.WHISPER_MODEL_SIZE = args.model
+    if args.language:
+        config.ASR_LANGUAGE = args.language
+    if args.chunk_ms:
+        config.ASR_CHUNK_MS = args.chunk_ms
+    if args.vad is not None:
+        config.ASR_VAD_ENABLED = args.vad
+    if args.vad_threshold is not None:
+        config.ASR_VAD_THRESHOLD = args.vad_threshold
+    if args.dynamic_chunks is not None:
+        config.ASR_DYNAMIC_CHUNKS = args.dynamic_chunks
+    if args.silence_ms:
+        config.ASR_SILENCE_MS = args.silence_ms
+    if args.min_segment_ms:
+        config.ASR_MIN_SEGMENT_MS = args.min_segment_ms
+    if args.max_segment_ms:
+        config.ASR_MAX_SEGMENT_MS = args.max_segment_ms
+    if args.asr_backend:
+        config.ASR_BACKEND = args.asr_backend
+    if args.asr_device:
         config.DEVICE = args.asr_device
         config.FUNASR_DEVICE = args.asr_device
-    if args.compute_type: config.COMPUTE_TYPE = args.compute_type
-    
-    if args.openai_model: config.OPENAI_TRANSCRIBE_MODEL = args.openai_model
-    if args.funasr_model: config.FUNASR_MODEL = args.funasr_model
-    if args.funasr_punc_model: config.FUNASR_PUNC_MODEL = args.funasr_punc_model
+    if args.compute_type:
+        config.COMPUTE_TYPE = args.compute_type
+
+    if args.openai_model:
+        config.OPENAI_TRANSCRIBE_MODEL = args.openai_model
+    if args.funasr_model:
+        config.FUNASR_MODEL = args.funasr_model
+    if args.funasr_punc_model:
+        config.FUNASR_PUNC_MODEL = args.funasr_punc_model
 
     # --------------------------------------------------------------------------
     # Device Resolution
@@ -324,7 +340,7 @@ def main() -> int:
         return 2
 
     hostapi_name = "WASAPI (soundcard)" if backend == "soundcard" else ""
-    capture_rate = 48000 # default
+    capture_rate = 48000  # default
     channels = 2
 
     if backend == "sounddevice":
@@ -344,12 +360,12 @@ def main() -> int:
         capture_rate = int(args.capture_sample_rate or dev["default_samplerate"])
         channels = int(dev["max_output_channels"]) or 2
         channels = 2 if channels >= 2 else 1
-    else: # soundcard
+    else:  # soundcard
         if sc is None:
             logger.error("soundcard is not installed.")
             return 2
         capture_rate = int(args.capture_sample_rate or 48000)
-    
+
     target_rate = config.SAMPLE_RATE
     chunk_ms = config.ASR_CHUNK_MS
     chunk_frames_capture = int(capture_rate * (chunk_ms / 1000.0))
@@ -379,7 +395,7 @@ def main() -> int:
     # --------------------------------------------------------------------------
     input_queue = queue.Queue()
     output_queue = queue.Queue()
-    
+
     transcriber = Transcriber(input_queue, output_queue)
     transcriber.start()
 
@@ -392,31 +408,32 @@ def main() -> int:
         # ----------------------------------------------------------------------
         if backend == "sounddevice":
             wasapi_settings = sd.WasapiSettings(loopback=True, auto_convert=True)
+
             def callback(indata, frames, time_info, status):
                 if status:
                     logger.debug(f"Audio callback status: {status}")
                 # Resample immediately or just put in queue?
                 # Transcriber expects segments, but here we get raw callback chunks.
-                # To minimize callback work, put in queue. 
-                # BUT Transcriber expects TARGET SAMPLE RATE. 
+                # To minimize callback work, put in queue.
+                # BUT Transcriber expects TARGET SAMPLE RATE.
                 # So we must resample either here or there.
                 # To match previous logic, let's resample here or ensure Transcriber handles it.
-                # Previous logic resampled in main loop. 
+                # Previous logic resampled in main loop.
                 # Let's simple: resample here.
-                
+
                 block = indata.copy()
                 if block.ndim == 2:
                     if block.shape[1] > 1:
-                        block = np.mean(block, axis=1) # mix to mono
+                        block = np.mean(block, axis=1)  # mix to mono
                     else:
                         block = block[:, 0]
-                
+
                 # Simple resampling
                 if capture_rate != target_rate:
                     chunk = resample_linear(block, capture_rate, target_rate)
                 else:
                     chunk = block
-                
+
                 input_queue.put(chunk)
 
             stream = sd.InputStream(
@@ -428,7 +445,7 @@ def main() -> int:
                 extra_settings=wasapi_settings,
             )
             stream.start()
-            
+
             # Main thread loop: process output
             while True:
                 try:
@@ -440,11 +457,11 @@ def main() -> int:
                 except KeyboardInterrupt:
                     break
 
-        else: # soundcard
+        else:  # soundcard
             loopback_mic = resolve_loopback_microphone(dev)
             logger.info(f"  loopback_device={loopback_mic.name}")
             recorder = loopback_mic.recorder(samplerate=capture_rate, channels=channels)
-            
+
             with recorder:
                 while True:
                     block = recorder.record(numframes=chunk_frames_capture)
@@ -453,14 +470,14 @@ def main() -> int:
                             block = np.mean(block, axis=1)
                         else:
                             block = block[:, 0]
-                    
+
                     if capture_rate != target_rate:
                         chunk = resample_linear(block, capture_rate, target_rate)
                     else:
                         chunk = block
-                    
+
                     input_queue.put(chunk)
-                    
+
                     # Check for output
                     while not output_queue.empty():
                         try:
@@ -482,6 +499,7 @@ def main() -> int:
             file_handle.close()
 
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

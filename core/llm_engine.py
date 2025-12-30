@@ -14,11 +14,11 @@ def load_system_prompt(filepath: str) -> str:
     """Load system prompt from file."""
     try:
         if os.path.exists(filepath):
-            with open(filepath, 'r', encoding='utf-8') as f:
+            with open(filepath, "r", encoding="utf-8") as f:
                 return f.read().strip()
     except Exception as e:
         logger.warning(f"Could not load system prompt from {filepath}: {e}")
-    
+
     # Default fallback prompt
     return """You are an expert counseling supervisor and copilot.
 Your goal is to assist the human counselor by providing real-time suggestions.
@@ -38,9 +38,7 @@ class SuggestionEngine:
         try:
             if config.OPENAI_API_KEY:
                 self.provider = OpenAIProvider(
-                    api_key=config.OPENAI_API_KEY,
-                    model=self.model,
-                    base_url=config.OPENAI_BASE_URL or None
+                    api_key=config.OPENAI_API_KEY, model=self.model, base_url=config.OPENAI_BASE_URL or None
                 )
             else:
                 self.provider = create_llm_provider(config)
@@ -62,12 +60,12 @@ class SuggestionEngine:
         """Generate suggestions based on conversation context."""
         if not self.provider:
             return ""
-        
+
         if not context or not context.strip():
             return ""
 
         full_prompt = f"{self.system_prompt}\n\nRecent Conversation:\n{context}\n\nProvide your suggestions:"
-        
+
         try:
             return self.provider.generate(full_prompt)
         except Exception as e:

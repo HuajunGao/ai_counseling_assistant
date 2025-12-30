@@ -114,9 +114,7 @@ def resolve_loopback_microphone(speaker) -> "sc._Microphone":
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Record a short loopback audio clip for benchmark purposes."
-    )
+    parser = argparse.ArgumentParser(description="Record a short loopback audio clip for benchmark purposes.")
     parser.add_argument("--output", default="benchmark.wav", help="Output WAV file path")
     parser.add_argument("--duration", type=float, default=15.0, help="Duration in seconds")
     parser.add_argument("--sample-rate", type=int, default=16000, help="Sample rate")
@@ -125,7 +123,9 @@ def main() -> int:
     parser.add_argument("--device-id", type=int, help="Output device id")
     parser.add_argument("--device-name", help="Output device name substring")
     parser.add_argument("--list-devices", action="store_true", help="List devices and exit")
-    parser.add_argument("--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend")
+    parser.add_argument(
+        "--backend", default="auto", choices=["auto", "soundcard", "sounddevice"], help="Capture backend"
+    )
     args = parser.parse_args()
 
     backend = resolve_backend(args.backend)

@@ -96,7 +96,7 @@ class FunASRProvider(ASRProvider):
         try:
             # Use batch_size_s=300 to ensure full processing of the chunk.
             result = self.model.generate(audio, batch_size_s=300)
-            
+
             if isinstance(result, dict):
                 text = (result.get("text_with_punc") or result.get("punc_text") or result.get("text") or "").strip()
             elif isinstance(result, list):
@@ -115,9 +115,7 @@ class FunASRProvider(ASRProvider):
             # If punc model is loaded but output has no punctuation, run punc once more.
             if text and getattr(self.model, "punc_model", None) is not None and not _has_punctuation(text):
                 try:
-                    punc_res = self.model.inference(
-                        text, model=self.model.punc_model, kwargs=self.model.punc_kwargs
-                    )
+                    punc_res = self.model.inference(text, model=self.model.punc_model, kwargs=self.model.punc_kwargs)
                     if isinstance(punc_res, list) and punc_res:
                         punc_text = (punc_res[0].get("text") or "").strip()
                         if punc_text:
@@ -129,11 +127,13 @@ class FunASRProvider(ASRProvider):
             # This fixes "我 爱 中 国" -> "我爱中国" which saves tokens for LLM
             # Use zero-width assertions to handle overlapping matches correctly
             import re
-            text = re.sub(r'(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])', '', text)
+
+            text = re.sub(r"(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])", "", text)
             return text
         except Exception as e:
             # Print full trace for the user to see in logs
             import traceback
+
             traceback.print_exc()
             print(f"ERROR calling FunASR generate: {e}")
             return ""

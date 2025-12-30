@@ -74,14 +74,39 @@ def start_recording(mic_idx: int, loopback_idx: int):
     st.session_state.capture = DualStreamCapture(mic_idx, loopback_idx)
     st.session_state.capture.start()
 
-    # Create transcribers
+    # Build separate ASR configs for mic and loopback
+    import config as base_config
+    
+    mic_asr_backend = st.session_state.get("mic_asr_backend", base_config.ASR_BACKEND)
+    loopback_asr_backend = st.session_state.get("loopback_asr_backend", base_config.ASR_BACKEND)
+    whisper_model = st.session_state.get("whisper_model", base_config.WHISPER_MODEL_SIZE)
+    
+    # Create config-like objects for each transcriber
+    class ASRConfig:
+        pass
+    
+    mic_config = ASRConfig()
+    for attr in dir(base_config):
+        if not attr.startswith("_"):
+            setattr(mic_config, attr, getattr(base_config, attr))
+    mic_config.ASR_BACKEND = mic_asr_backend
+    mic_config.WHISPER_MODEL_SIZE = whisper_model
+
+    loopback_config = ASRConfig()
+    for attr in dir(base_config):
+        if not attr.startswith("_"):
+            setattr(loopback_config, attr, getattr(base_config, attr))
+    loopback_config.ASR_BACKEND = loopback_asr_backend
+    loopback_config.WHISPER_MODEL_SIZE = whisper_model
+
+    # Create transcribers with separate configs
     st.session_state.mic_transcriber = Transcriber(
-        st.session_state.capture.mic_queue, st.session_state.mic_output_queue
+        st.session_state.capture.mic_queue, st.session_state.mic_output_queue, config=mic_config
     )
     st.session_state.mic_transcriber.start()
 
     st.session_state.loopback_transcriber = Transcriber(
-        st.session_state.capture.loopback_queue, st.session_state.loopback_output_queue
+        st.session_state.capture.loopback_queue, st.session_state.loopback_output_queue, config=loopback_config
     )
     st.session_state.loopback_transcriber.start()
 

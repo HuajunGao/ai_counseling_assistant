@@ -100,32 +100,32 @@ class SileroVAD:
 
 
 class Transcriber(threading.Thread):
-    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, args_config=None):
+    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, config=None):
         super().__init__()
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.running = False
         self.provider = None
 
-        # Allow overriding config with args passed from CLI
-        self.config = config  # Default global config
-        # (TODO: minimal args support could be added here if we passed an object)
+        # Use provided config or fall back to global config module
+        import config as default_config
+        self.config = config if config is not None else default_config
 
         # Audio buffer configuration
-        self.sample_rate = config.SAMPLE_RATE
-        self.chunk_ms = config.ASR_CHUNK_MS
+        self.sample_rate = self.config.SAMPLE_RATE
+        self.chunk_ms = self.config.ASR_CHUNK_MS
         self.chunk_frames = int(self.sample_rate * (self.chunk_ms / 1000.0))
         self.audio_buffer = np.array([], dtype=np.float32)
 
         # VAD/dynamic chunking
-        self.vad_enabled = config.ASR_VAD_ENABLED
-        self.vad_threshold = getattr(config, "ASR_VAD_THRESHOLD", 0.01)  # Default to config or low fallback
+        self.vad_enabled = self.config.ASR_VAD_ENABLED
+        self.vad_threshold = getattr(self.config, "ASR_VAD_THRESHOLD", 0.01)  # Default to config or low fallback
         self.silero_threshold = 0.4  # Default for Silero
 
-        self.dynamic_chunks = config.ASR_DYNAMIC_CHUNKS
-        self.silence_ms = config.ASR_SILENCE_MS
-        self.min_segment_ms = config.ASR_MIN_SEGMENT_MS
-        self.max_segment_ms = config.ASR_MAX_SEGMENT_MS
+        self.dynamic_chunks = self.config.ASR_DYNAMIC_CHUNKS
+        self.silence_ms = self.config.ASR_SILENCE_MS
+        self.min_segment_ms = self.config.ASR_MIN_SEGMENT_MS
+        self.max_segment_ms = self.config.ASR_MAX_SEGMENT_MS
         self.silence_accum_ms = 0.0
         self.segment_parts = []
         self.segment_frames = 0

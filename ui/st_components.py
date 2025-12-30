@@ -108,8 +108,9 @@ def control_buttons(is_recording: bool) -> tuple:
 def ai_settings_panel(
     openai_models: list, whisper_models: list, asr_backends: list, current_whisper: str, current_ai_model: str
 ):
-    """Render AI and transcription settings."""
-    col1, col2, col3, col4, col5 = st.columns(5)
+    """Render AI and transcription settings with dual ASR config."""
+    # Row 1: AI settings
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         ai_model = st.selectbox(
@@ -125,19 +126,25 @@ def ai_settings_panel(
     with col3:
         context_len = st.slider("📝 上下文(行)", min_value=3, max_value=20, value=15, step=1, key="ai_context_len")
 
+    # Row 2: ASR settings (dual config)
+    col4, col5, col6 = st.columns(3)
+
     with col4:
-        asr_backend = st.selectbox("🎯 转录后端", options=asr_backends, key="asr_backend_select")
+        mic_asr = st.selectbox("🎤 我的 ASR", options=asr_backends, key="mic_asr_select")
 
     with col5:
+        loopback_asr = st.selectbox("🔊 对方 ASR", options=asr_backends, key="loopback_asr_select")
+
+    with col6:
         whisper_model = st.selectbox(
             "🎤 Whisper",
             options=whisper_models,
             index=whisper_models.index(current_whisper) if current_whisper in whisper_models else 4,
             key="whisper_model_select",
-            disabled=(asr_backend != "whisper"),
+            disabled=(mic_asr != "whisper" and loopback_asr != "whisper"),
         )
 
-    return ai_model, interval, context_len, asr_backend, whisper_model
+    return ai_model, interval, context_len, mic_asr, loopback_asr, whisper_model
 
 
 def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "blue"):

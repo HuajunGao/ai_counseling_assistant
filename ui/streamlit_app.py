@@ -120,7 +120,7 @@ if clear_clicked:
     st.rerun()
 
 # AI Settings panel
-ai_model, ai_interval, ai_context_len, asr_backend, whisper_model = ai_settings_panel(
+ai_model, ai_interval, ai_context_len, mic_asr, loopback_asr, whisper_model = ai_settings_panel(
     config.OPENAI_MODELS, config.WHISPER_MODELS, config.ASR_BACKENDS, config.WHISPER_MODEL_SIZE, config.OPENAI_MODEL
 )
 
@@ -129,11 +129,11 @@ if st.session_state.suggestion_engine:
     st.session_state.suggestion_engine.set_model(ai_model)
     st.session_state.suggestion_engine.set_context_length(ai_context_len)
 
-# Apply ASR settings to config at runtime before Transcriber uses them
-# Map backend names: "whisper" -> "local", others stay same
+# Store ASR settings in session state for use when starting recording
 backend_map = {"whisper": "local", "funasr": "funasr", "openai": "openai", "azure": "azure"}
-config.ASR_BACKEND = backend_map.get(asr_backend, asr_backend)
-config.WHISPER_MODEL_SIZE = whisper_model
+st.session_state.mic_asr_backend = backend_map.get(mic_asr, mic_asr)
+st.session_state.loopback_asr_backend = backend_map.get(loopback_asr, loopback_asr)
+st.session_state.whisper_model = whisper_model
 
 # Main content - 3 columns
 col_left, col_center, col_right = st.columns([3, 4, 3])

@@ -131,7 +131,7 @@ with tab_config:
     # Store device selection in session state
     st.session_state.selected_mic_idx = mic_idx
     st.session_state.selected_speaker_idx = speaker_idx
-    st.session_state.ai_interval = ai_interval
+    st.session_state.selected_ai_interval = ai_interval
 
 # ===== MAIN TAB =====
 with tab_main:
@@ -144,7 +144,7 @@ with tab_main:
     # Get device selection from session state (set in config tab)
     mic_idx = st.session_state.get("selected_mic_idx", 0)
     speaker_idx = st.session_state.get("selected_speaker_idx", 0)
-    ai_interval = st.session_state.get("ai_interval", 15)
+    ai_interval = st.session_state.get("selected_ai_interval", 15)
     
     if start_clicked:
         start_recording(mic_idx, speaker_idx)

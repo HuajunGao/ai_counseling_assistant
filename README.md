@@ -40,16 +40,28 @@ A local AI-powered counseling copilot that transcribes audio (microphone or syst
     OLLAMA_MODEL=llama3
     ```
 
-## Usage
-
-### 1. Main Application (Microphone Input)
-Use this for counseling sessions where you are speaking into a microphone.
+## Quick Start
 
 ```bash
-python main.py
+# Start the main Streamlit app
+uv run app
+
+# Or use the full command
+uv run streamlit run ui/streamlit_app.py
 ```
-- Opens a web interface at `http://localhost:8080`.
-- Select your **Microphone** device from the dropdown.
+
+The app opens at `http://localhost:8501`. Select your microphone and speaker devices, then click "开始录制".
+
+## Usage
+
+### 1. Main Application (Streamlit)
+The primary interface for counseling sessions with dual-stream transcription (your mic + system audio).
+
+```bash
+uv run app
+```
+- Opens a web interface at `http://localhost:8501`.
+- Select your **Microphone** (我) and **Speaker** (对方) devices.
 
 ### 2. System Audio Transcription (Loopback)
 Use this to transcribe audio playing from your computer (e.g., a Zoom call, video, or the "Foreground Player" simulation).

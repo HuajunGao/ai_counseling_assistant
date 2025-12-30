@@ -1,0 +1,30 @@
+[project]
+name = "ai-counseling-assistant"
+version = "0.1.0"
+description = "AI-powered counseling copilot with real-time transcription and suggestions"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "streamlit",
+    "nicegui",
+    "faster-whisper",
+    "funasr",
+    "openai",
+    "soundcard",
+    "sounddevice",
+    "numpy",
+    "torch",
+    "python-dotenv",
+    "pywin32",
+    "soundfile",
+]
+
+[project.scripts]
+# Main Streamlit app
+app = "streamlit.web.cli:main"
+
+[tool.uv.scripts]
+# Shorthand commands for common tasks
+app = "streamlit run ui/streamlit_app.py"
+transcribe = "python output_transcription/transcribe_output.py"
+nicegui = "python main.py"

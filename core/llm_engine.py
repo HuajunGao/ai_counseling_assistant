@@ -93,3 +93,49 @@ class SuggestionEngine:
         except Exception as e:
             logger.error(f"Failed to generate suggestions: {e}")
             return ""
+
+    def generate_session_summary(self, speaker_transcript: list, listener_transcript: list) -> str:
+        """Generate a summary of the entire session for archival purposes.
+        
+        Args:
+            speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
+            listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
+        
+        Returns:
+            A comprehensive summary of the session
+        """
+        if not self.provider:
+            return "无法生成总结：AI 服务未配置"
+
+        import json
+        
+        # Use all transcripts for summary (not limited by context_length)
+        context_data = {
+            "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
+                      for item in speaker_transcript],
+            "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
+                      for item in listener_transcript],
+        }
+        
+        if not context_data["倾诉者"] and not context_data["倾听者"]:
+            return "无对话内容，无法生成总结"
+        
+        # Summary-specific system prompt
+        summary_system_prompt = """你是一位专业的心理咨询记录整理助手。请根据提供的对话内容，生成一份简洁但全面的会话总结。
+
+总结应包含：
+1. 来访者（倾诉者）的主要议题和关注点
+2. 咨询师（倾听者）的主要干预和回应
+3. 会话中的关键时刻或洞察
+4. 后续建议（如有）
+
+请使用中文，保持专业、客观的语气。总结长度控制在200-400字。"""
+
+        user_content = f"请总结以下咨询对话：\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+
+        try:
+            return self.provider.generate(user_content, system_prompt=summary_system_prompt)
+        except Exception as e:
+            logger.error(f"Failed to generate session summary: {e}")
+            return f"生成总结时出错：{str(e)}"
+

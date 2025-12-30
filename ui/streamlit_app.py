@@ -52,7 +52,10 @@ from ui.st_session import (
     process_transcripts,
     generate_ai_suggestion,
     clear_session,
+    save_session,
+    get_existing_visitor_ids,
 )
+from core.session_storage import generate_default_visitor_id
 from ui.st_components import (
     device_selectors,
     level_meters,
@@ -61,6 +64,7 @@ from ui.st_components import (
     transcript_panel,
     ai_suggestions_panel,
     status_indicator,
+    visitor_id_input,
 )
 import config
 
@@ -141,6 +145,14 @@ with tab_main:
     # Control buttons
     start_clicked, stop_clicked, clear_clicked = control_buttons(st.session_state.is_recording)
     
+    # Visitor ID and Save button
+    default_visitor_id = st.session_state.get("current_visitor_id", generate_default_visitor_id())
+    existing_ids = get_existing_visitor_ids()
+    visitor_id, save_clicked = visitor_id_input(default_visitor_id, existing_ids)
+    
+    # Store current visitor ID in session state
+    st.session_state.current_visitor_id = visitor_id
+    
     # Get device selection from session state (set in config tab)
     mic_idx = st.session_state.get("selected_mic_idx", 0)
     speaker_idx = st.session_state.get("selected_speaker_idx", 0)
@@ -157,6 +169,15 @@ with tab_main:
     if clear_clicked:
         clear_session()
         st.rerun()
+    
+    # Handle save button click
+    if save_clicked:
+        with st.spinner("正在保存会话并生成总结..."):
+            success, message, filepath = save_session(visitor_id)
+        if success:
+            st.success(message)
+        else:
+            st.error(message)
     
     # Main content - 3 columns
     col_left, col_center, col_right = st.columns([3, 4, 3])

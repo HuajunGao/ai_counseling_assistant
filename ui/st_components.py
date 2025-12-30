@@ -192,3 +192,30 @@ def status_indicator(is_recording: bool):
         st.success("🔴 正在录制...")
     else:
         st.info("⏸️ 已停止")
+
+
+def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
+    """
+    Render visitor ID input with save button.
+    Returns (visitor_id, save_clicked).
+    """
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        # Text input for visitor ID with autocomplete hint
+        help_text = f"已有来访者: {', '.join(existing_ids[-5:])}" if existing_ids else "输入来访者ID"
+        visitor_id = st.text_input(
+            "🏷️ 来访 ID",
+            value=default_id,
+            placeholder="例如: 20251230 或 client_001",
+            help=help_text,
+            key="visitor_id_input",
+        )
+    
+    with col2:
+        # Add some vertical spacing to align with input
+        st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
+        save_clicked = st.button("💾 保存会话", type="primary", use_container_width=True)
+    
+    return visitor_id, save_clicked
+

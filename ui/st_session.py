@@ -21,6 +21,11 @@ if sys.platform == "win32":
 from core.dual_capture import DualStreamCapture, list_devices
 from core.transcriber import Transcriber
 from core.llm_engine import SuggestionEngine
+from core.session_storage import (
+    save_session as save_session_to_disk,
+    generate_default_visitor_id,
+    get_visitor_ids,
+)
 
 
 def init_session_state():
@@ -222,3 +227,61 @@ def clear_session():
                 st.session_state.loopback_output_queue.get_nowait()
             except:
                 break
+
+
+def save_session(visitor_id: str) -> tuple:
+    """
+    Save the current session to disk with AI-generated summary.
+    
+    Args:
+        visitor_id: The visitor/client ID for organizing sessions
+    
+    Returns:
+        Tuple of (success: bool, message: str, filepath: str or None)
+    """
+    listener_transcript = st.session_state.get("my_transcript", [])
+    speaker_transcript = st.session_state.get("other_transcript", [])
+    
+    # Check if there's any content to save
+    if not listener_transcript and not speaker_transcript:
+        return False, "没有对话内容可保存", None
+    
+    # Validate visitor_id
+    if not visitor_id or not visitor_id.strip():
+        visitor_id = generate_default_visitor_id()
+    
+    visitor_id = visitor_id.strip()
+    
+    # Generate AI summary
+    summary = ""
+    if st.session_state.get("suggestion_engine"):
+        try:
+            summary = st.session_state.suggestion_engine.generate_session_summary(
+                speaker_transcript=speaker_transcript,
+                listener_transcript=listener_transcript
+            )
+        except Exception as e:
+            summary = f"总结生成失败: {str(e)}"
+    else:
+        summary = "AI 服务未配置，无法生成总结"
+    
+    # Save to disk
+    try:
+        filepath = save_session_to_disk(
+            visitor_id=visitor_id,
+            listener_transcript=listener_transcript,
+            speaker_transcript=speaker_transcript,
+            summary=summary
+        )
+        return True, f"会话已保存到: {filepath}", filepath
+    except Exception as e:
+        return False, f"保存失败: {str(e)}", None
+
+
+def get_existing_visitor_ids() -> list:
+    """Get list of existing visitor IDs for autocomplete."""
+    try:
+        return get_visitor_ids()
+    except Exception:
+        return []
+

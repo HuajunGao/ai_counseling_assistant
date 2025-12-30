@@ -166,32 +166,33 @@ def process_transcripts():
             break
 
 
-def generate_ai_suggestion(interval_seconds: int = 30):
-    """Generate AI suggestion if enough time has passed."""
+def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
+    """Generate AI suggestion if enough time has passed or if user asked a question."""
     current_time = time.time()
-    if current_time - st.session_state.last_suggestion_time < interval_seconds:
+    
+    # If user asked a question, always generate (skip interval check)
+    has_question = bool(user_question and user_question.strip())
+    if not has_question and current_time - st.session_state.last_suggestion_time < interval_seconds:
         return
 
-    # Build context from recent conversation (handle dict format)
-    my_recent = st.session_state.my_transcript[-5:] if st.session_state.my_transcript else []
-    other_recent = st.session_state.other_transcript[-5:] if st.session_state.other_transcript else []
+    # Get transcripts (speaker = 倾诉者 = other, listener = 倾听者 = my)
+    speaker_transcript = st.session_state.other_transcript or []
+    listener_transcript = st.session_state.my_transcript or []
 
-    # Check if there is new content since last suggestion
-    current_len = len(st.session_state.my_transcript) + len(st.session_state.other_transcript)
-    if current_len == st.session_state.get("last_transcript_len", 0):
+    # Check if there is new content since last suggestion (skip if user asked question)
+    current_len = len(listener_transcript) + len(speaker_transcript)
+    if not has_question and current_len == st.session_state.get("last_transcript_len", 0):
         return
 
-    # Extract text from dict items
-    my_texts = [item["text"] if isinstance(item, dict) else item for item in my_recent]
-    other_texts = [item["text"] if isinstance(item, dict) else item for item in other_recent]
-
-    if not my_texts and not other_texts:
+    if not speaker_transcript and not listener_transcript and not has_question:
         return
-
-    context = "对方: " + " ".join(other_texts) + "\n我: " + " ".join(my_texts)
 
     try:
-        suggestion = st.session_state.suggestion_engine.generate_suggestions(context)
+        suggestion = st.session_state.suggestion_engine.generate_suggestions(
+            speaker_transcript=speaker_transcript,
+            listener_transcript=listener_transcript,
+            user_question=user_question
+        )
         if suggestion:
             st.session_state.ai_suggestions.append({"time": time.strftime("%H:%M:%S"), "text": suggestion})
             st.session_state.last_suggestion_time = current_time

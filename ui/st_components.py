@@ -163,17 +163,27 @@ def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "bl
 
 
 def ai_suggestions_panel(suggestions: list):
-    """Render AI suggestions panel."""
+    """Render AI suggestions panel with question input."""
     st.markdown("**💡 AI 建议**")
+    
+    # Question input for the counselor
+    user_question = st.text_input(
+        "💬 向 AI 提问",
+        placeholder="输入问题后按回车发送...",
+        key="ai_question_input",
+        label_visibility="collapsed"
+    )
 
-    container = st.container(height=400)
+    container = st.container(height=350)
     with container:
         if suggestions:
             for item in reversed(suggestions[-5:]):  # Show last 5, newest first
                 with st.expander(f"🕐 {item['time']}", expanded=True):
                     st.markdown(item["text"])
         else:
-            st.info("AI 将根据对话内容定期提供建议...")
+            st.info("AI 将根据对话内容定期提供建议，或输入问题直接询问...")
+    
+    return user_question
 
 
 def status_indicator(is_recording: bool):

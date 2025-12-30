@@ -56,18 +56,40 @@ class SuggestionEngine:
         """Set how many lines of context to use."""
         self.context_length = length
 
-    def generate_suggestions(self, context: str) -> str:
-        """Generate suggestions based on conversation context."""
+    def generate_suggestions(self, speaker_transcript: list, listener_transcript: list, user_question: str = "") -> str:
+        """Generate suggestions based on conversation context.
+        
+        Args:
+            speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
+            listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
+            user_question: Optional question from the counselor to AI
+        """
         if not self.provider:
             return ""
 
-        if not context or not context.strip():
+        # Build structured context as JSON
+        import json
+        
+        context_data = {
+            "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
+                      for item in speaker_transcript[-self.context_length:]],
+            "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
+                      for item in listener_transcript[-self.context_length:]],
+        }
+        
+        if not context_data["倾诉者"] and not context_data["倾听者"]:
             return ""
-
-        full_prompt = f"{self.system_prompt}\n\nRecent Conversation:\n{context}\n\nProvide your suggestions:"
+        
+        # Build user message
+        user_content = f"对话上下文:\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+        
+        if user_question and user_question.strip():
+            user_content += f"\n\n倾听者的问题: {user_question.strip()}"
+        else:
+            user_content += "\n\n请根据上下文提供建议。"
 
         try:
-            return self.provider.generate(full_prompt)
+            return self.provider.generate(user_content, system_prompt=self.system_prompt)
         except Exception as e:
             logger.error(f"Failed to generate suggestions: {e}")
             return ""

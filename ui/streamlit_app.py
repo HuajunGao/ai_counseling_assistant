@@ -138,13 +138,18 @@ st.session_state.loopback_asr_backend = backend_map.get(loopback_asr, loopback_a
 col_left, col_center, col_right = st.columns([3, 4, 3])
 
 with col_left:
-    transcript_panel("我", "🧑", st.session_state.my_transcript, "blue")
+    transcript_panel("倾听者 (我)", "🧑", st.session_state.my_transcript, "blue")
 
 with col_center:
-    ai_suggestions_panel(st.session_state.ai_suggestions)
+    user_question = ai_suggestions_panel(st.session_state.ai_suggestions)
 
 with col_right:
-    transcript_panel("对方", "👤", st.session_state.other_transcript, "green")
+    transcript_panel("倾诉者 (对方)", "👤", st.session_state.other_transcript, "green")
+
+# Handle user question - if entered, generate immediately
+if user_question and user_question.strip():
+    generate_ai_suggestion(interval_seconds=0, user_question=user_question)
+    st.rerun()
 
 # Auto-refresh logic when recording
 if st.session_state.is_recording:

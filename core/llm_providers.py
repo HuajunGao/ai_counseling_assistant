@@ -50,12 +50,18 @@ class OpenAIProvider(LLMProvider):
         self.client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
         self.model = model
 
-    def generate(self, prompt: str) -> str:
+    def generate(self, prompt: str, system_prompt: str = None) -> str:
+        """Generate text using OpenAI chat completions with optional system prompt."""
         try:
+            messages = []
+            if system_prompt:
+                messages.append({"role": "system", "content": system_prompt})
+            messages.append({"role": "user", "content": prompt})
+            
             response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=300,
+                messages=messages,
+                max_tokens=500,
             )
             return response.choices[0].message.content
         except Exception as e:

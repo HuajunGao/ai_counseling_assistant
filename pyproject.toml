@@ -18,6 +18,7 @@ dependencies = [
     "pywin32",
     "soundfile",
     "azure-cognitiveservices-speech>=1.47.0",
+    "ruff>=0.14.10",
 ]
 
 [project.optional-dependencies]

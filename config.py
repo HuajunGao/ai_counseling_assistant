@@ -24,9 +24,9 @@ ASR_CHUNK_MS = int(os.getenv("ASR_CHUNK_MS", "1000"))
 ASR_DYNAMIC_CHUNKS = _env_bool("ASR_DYNAMIC_CHUNKS", True)
 ASR_VAD_ENABLED = _env_bool("ASR_VAD_ENABLED", True)
 ASR_VAD_THRESHOLD = float(os.getenv("ASR_VAD_THRESHOLD", "0.01"))
-ASR_SILENCE_MS = int(os.getenv("ASR_SILENCE_MS", "900"))
-ASR_MIN_SEGMENT_MS = int(os.getenv("ASR_MIN_SEGMENT_MS", "5000"))
-ASR_MAX_SEGMENT_MS = int(os.getenv("ASR_MAX_SEGMENT_MS", "15000"))
+ASR_SILENCE_MS = int(os.getenv("ASR_SILENCE_MS", "500"))
+ASR_MIN_SEGMENT_MS = int(os.getenv("ASR_MIN_SEGMENT_MS", "2000"))
+ASR_MAX_SEGMENT_MS = int(os.getenv("ASR_MAX_SEGMENT_MS", "10000"))
 ASR_PUNC_POSTPROCESS = _env_bool("ASR_PUNC_POSTPROCESS", True)
 
 WHISPER_MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "large-v3")  # tiny/base/small/medium/large-v3

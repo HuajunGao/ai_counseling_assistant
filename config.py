@@ -60,8 +60,7 @@ SYSTEM_PROMPT_FILE = os.getenv("SYSTEM_PROMPT_FILE", "prompts/counseling_system.
 
 # Available models for UI selection
 OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
-WHISPER_MODELS = ["tiny", "base", "small", "medium", "large-v3"]
-ASR_BACKENDS = ["funasr", "whisper", "openai", "azure"]  # Transcription backend options
+ASR_BACKENDS = ["funasr", "openai", "azure"]  # Transcription backend options
 
 # Default device name for auto-selection
 DEFAULT_DEVICE_NAME = os.getenv("DEFAULT_DEVICE_NAME", "Echo Cancelling Speakerphone")

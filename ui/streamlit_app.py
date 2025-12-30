@@ -120,8 +120,8 @@ if clear_clicked:
     st.rerun()
 
 # AI Settings panel
-ai_model, ai_interval, ai_context_len, mic_asr, loopback_asr, whisper_model = ai_settings_panel(
-    config.OPENAI_MODELS, config.WHISPER_MODELS, config.ASR_BACKENDS, config.WHISPER_MODEL_SIZE, config.OPENAI_MODEL
+ai_model, ai_interval, ai_context_len, mic_asr, loopback_asr = ai_settings_panel(
+    config.OPENAI_MODELS, config.ASR_BACKENDS, config.OPENAI_MODEL
 )
 
 # Update suggestion engine with selected model
@@ -130,10 +130,9 @@ if st.session_state.suggestion_engine:
     st.session_state.suggestion_engine.set_context_length(ai_context_len)
 
 # Store ASR settings in session state for use when starting recording
-backend_map = {"whisper": "local", "funasr": "funasr", "openai": "openai", "azure": "azure"}
+backend_map = {"funasr": "funasr", "openai": "openai", "azure": "azure"}
 st.session_state.mic_asr_backend = backend_map.get(mic_asr, mic_asr)
 st.session_state.loopback_asr_backend = backend_map.get(loopback_asr, loopback_asr)
-st.session_state.whisper_model = whisper_model
 
 # Main content - 3 columns
 col_left, col_center, col_right = st.columns([3, 4, 3])

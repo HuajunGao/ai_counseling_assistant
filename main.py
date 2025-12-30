@@ -74,6 +74,19 @@ def main():
                 # Device Selector (now simplified)
                 device_select = ui.select(device_options, value=default_device, label='Audio Device').classes('w-80')
                 
+                # ASR Backend Selector
+                import config
+                asr_backend_select = ui.select(
+                    config.ASR_BACKENDS,
+                    value=config.ASR_BACKEND,
+                    label='ASR Engine'
+                ).classes('w-32')
+                
+                def on_backend_change(e):
+                    config.ASR_BACKEND = e.value
+                    ui.notify(f'ASR backend set to: {e.value}', type='info')
+                asr_backend_select.on('update:model-value', on_backend_change)
+                
                 # Live Level Meter
                 with ui.column().classes('gap-0'):
                     ui.label('Level').classes('text-xs text-gray-500')

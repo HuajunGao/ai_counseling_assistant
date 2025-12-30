@@ -133,6 +133,12 @@ if st.session_state.suggestion_engine:
     st.session_state.suggestion_engine.set_model(ai_model)
     st.session_state.suggestion_engine.set_context_length(ai_context_len)
 
+# Apply ASR settings to config at runtime before Transcriber uses them
+# Map backend names: "whisper" -> "local", others stay same
+backend_map = {"whisper": "local", "funasr": "funasr", "openai": "openai", "azure": "azure"}
+config.ASR_BACKEND = backend_map.get(asr_backend, asr_backend)
+config.WHISPER_MODEL_SIZE = whisper_model
+
 # Main content - 3 columns
 col_left, col_center, col_right = st.columns([3, 4, 3])
 

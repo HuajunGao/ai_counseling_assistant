@@ -1,15 +1,22 @@
 import abc
 import io
-import os
+import logging
 from typing import Optional
 
 import numpy as np
 import soundfile as sf
 
+logger = logging.getLogger(__name__)
+_PUNC_CHARS = set("\u3002\uff01\uff1f\uff1b\uff0c\u3001\uff1a,.!?;:")
+
+
+def _has_punctuation(text: str) -> bool:
+    return any(ch in _PUNC_CHARS for ch in text)
+
 
 class ASRProvider(abc.ABC):
     @abc.abstractmethod
-    def transcribe(self, audio: np.ndarray, sample_rate: int) -> str:
+    def transcribe(self, audio: np.ndarray, sample_rate: int, prompt: str = None) -> str:
         """Return transcription text for the given mono float32 audio."""
 
 
@@ -20,10 +27,11 @@ class FasterWhisperProvider(ASRProvider):
         self.language = language
         self.model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int) -> str:
+    def transcribe(self, audio: np.ndarray, sample_rate: int, prompt: str = None) -> str:
         segments, _info = self.model.transcribe(
             audio,
             language=None if self.language == "auto" else self.language,
+            initial_prompt=prompt,
             vad_filter=True,
             beam_size=5,
         )
@@ -43,7 +51,7 @@ class OpenAIProvider(ASRProvider):
         self.client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
         self.model = model
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int) -> str:
+    def transcribe(self, audio: np.ndarray, sample_rate: int, prompt: str = None) -> str:
         buffer = io.BytesIO()
         setattr(buffer, "name", "audio.wav")
         sf.write(buffer, audio, sample_rate, format="WAV", subtype="PCM_16")
@@ -51,6 +59,7 @@ class OpenAIProvider(ASRProvider):
         response = self.client.audio.transcriptions.create(
             model=self.model,
             file=buffer,
+            prompt=prompt,
         )
         return (response.text or "").strip()
 
@@ -83,14 +92,51 @@ class FunASRProvider(ASRProvider):
             model_kwargs["trust_remote_code"] = True
         self.model = AutoModel(**model_kwargs)
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int) -> str:
-        result = self.model.generate(audio)
-        if isinstance(result, dict):
-            return (result.get("text") or "").strip()
-        if isinstance(result, list):
-            text = " ".join((item.get("text") or "").strip() for item in result if isinstance(item, dict))
-            return text.strip()
-        return ""
+    def transcribe(self, audio: np.ndarray, sample_rate: int, prompt: str = None) -> str:
+        try:
+            # Use batch_size_s=300 to ensure full processing of the chunk.
+            result = self.model.generate(audio, batch_size_s=300)
+            
+            if isinstance(result, dict):
+                text = (result.get("text_with_punc") or result.get("punc_text") or result.get("text") or "").strip()
+            elif isinstance(result, list):
+                texts = []
+                for item in result:
+                    if isinstance(item, dict):
+                        # Prioritize punctuation keys if available
+                        t = item.get("text_with_punc") or item.get("punc_text") or item.get("text")
+                        if t:
+                            texts.append(t.strip())
+                text = " ".join(texts)
+                text = text.strip()
+            else:
+                return ""
+
+            # If punc model is loaded but output has no punctuation, run punc once more.
+            if text and getattr(self.model, "punc_model", None) is not None and not _has_punctuation(text):
+                try:
+                    punc_res = self.model.inference(
+                        text, model=self.model.punc_model, kwargs=self.model.punc_kwargs
+                    )
+                    if isinstance(punc_res, list) and punc_res:
+                        punc_text = (punc_res[0].get("text") or "").strip()
+                        if punc_text:
+                            text = punc_text
+                except Exception as exc:
+                    logger.warning("FunASR punc postprocess failed: %s", exc)
+
+            # Post-processing: Remove spaces between Chinese characters
+            # This fixes "我 爱 中 国" -> "我爱中国" which saves tokens for LLM
+            # Use zero-width assertions to handle overlapping matches correctly
+            import re
+            text = re.sub(r'(?<=[\u4e00-\u9fa5])\s+(?=[\u4e00-\u9fa5])', '', text)
+            return text
+        except Exception as e:
+            # Print full trace for the user to see in logs
+            import traceback
+            traceback.print_exc()
+            print(f"ERROR calling FunASR generate: {e}")
+            return ""
 
 
 class AzureProvider(ASRProvider):
@@ -120,7 +166,7 @@ class AzureProvider(ASRProvider):
         self._speechsdk = speechsdk
         self._speech_config = speech_config
 
-    def transcribe(self, audio: np.ndarray, sample_rate: int) -> str:
+    def transcribe(self, audio: np.ndarray, sample_rate: int, prompt: str = None) -> str:
         if audio.size == 0:
             return ""
 

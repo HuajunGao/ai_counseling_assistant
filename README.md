@@ -74,3 +74,24 @@ Use this to transcribe audio playing from your computer (e.g., a Zoom call, vide
 - **No Audio**: Check if the correct device ID is selected. WASAPI Loopback requires an active output stream (play some audio to test).
 - **Crash on Start**: Ensure `ffmpeg` is on your PATH. If using CUDA, verify Nvidia drivers.
 - **MKL Conflict**: If you see a silent crash, set `KMP_DUPLICATE_LIB_OK=TRUE` in your environment.
+
+## Model Comparison commands
+To compare different ASR backends, you can use the following commands (replace `<ID>` with your output device ID):
+
+### 1. Faster-Whisper (Local, Recommended for General Use)
+Uses standard Whisper models. 'large-v3' is the most accurate.
+```bash
+uv run output_transcription/transcribe_output.py --device-id <ID> --asr-backend local --model large-v3 --dynamic-chunks --vad
+```
+
+### 2. FunASR (Best for Chinese)
+Uses Alibaba's Paraformer model, highly optimized for Mandarin.
+```bash
+uv run output_transcription/transcribe_output.py --device-id <ID> --asr-backend funasr --funasr-model iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch --dynamic-chunks --vad
+```
+
+### 3. OpenAI API (Highest Accuracy but Costly)
+Sends audio to OpenAI's hosted Whisper service. Requires `OPENAI_API_KEY`.
+```bash
+uv run output_transcription/transcribe_output.py --device-id <ID> --asr-backend openai --openai-model whisper-1 --dynamic-chunks --vad
+```

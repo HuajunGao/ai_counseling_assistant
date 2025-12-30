@@ -57,15 +57,15 @@ class OpenAIProvider(LLMProvider):
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
             messages.append({"role": "user", "content": prompt})
-            
+
             # Debug logging - print full prompt
-            logger.debug("\n" + "="*50)
+            logger.debug("\n" + "=" * 50)
             logger.debug("=== AI Request ===")
             for msg in messages:
-                content = msg['content']
+                content = msg["content"]
                 logger.debug(f"[{msg['role']}]:\n{content}")
-            logger.debug("="*50 + "\n")
-            
+            logger.debug("=" * 50 + "\n")
+
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,

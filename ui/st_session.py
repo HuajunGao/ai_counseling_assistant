@@ -81,14 +81,14 @@ def start_recording(mic_idx: int, loopback_idx: int):
 
     # Build separate ASR configs for mic and loopback
     import config as base_config
-    
+
     mic_asr_backend = st.session_state.get("mic_asr_backend", base_config.ASR_BACKEND)
     loopback_asr_backend = st.session_state.get("loopback_asr_backend", base_config.ASR_BACKEND)
-    
+
     # Create config-like objects for each transcriber
     class ASRConfig:
         pass
-    
+
     mic_config = ASRConfig()
     for attr in dir(base_config):
         if not attr.startswith("_"):
@@ -164,9 +164,7 @@ def process_transcripts():
         try:
             item = st.session_state.loopback_output_queue.get_nowait()
             if item.get("text"):
-                st.session_state.other_transcript.append(
-                    {"time": format_time_with_latency(item), "text": item["text"]}
-                )
+                st.session_state.other_transcript.append({"time": format_time_with_latency(item), "text": item["text"]})
         except:
             break
 
@@ -174,7 +172,7 @@ def process_transcripts():
 def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
     """Generate AI suggestion if enough time has passed or if user asked a question."""
     current_time = time.time()
-    
+
     # If user asked a question, always generate (skip interval check)
     has_question = bool(user_question and user_question.strip())
     if not has_question and current_time - st.session_state.last_suggestion_time < interval_seconds:
@@ -194,9 +192,7 @@ def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
 
     try:
         suggestion = st.session_state.suggestion_engine.generate_suggestions(
-            speaker_transcript=speaker_transcript,
-            listener_transcript=listener_transcript,
-            user_question=user_question
+            speaker_transcript=speaker_transcript, listener_transcript=listener_transcript, user_question=user_question
         )
         if suggestion:
             st.session_state.ai_suggestions.append({"time": time.strftime("%H:%M:%S"), "text": suggestion})
@@ -232,46 +228,45 @@ def clear_session():
 def save_session(visitor_id: str) -> tuple:
     """
     Save the current session to disk with AI-generated summary.
-    
+
     Args:
         visitor_id: The visitor/client ID for organizing sessions
-    
+
     Returns:
         Tuple of (success: bool, message: str, filepath: str or None)
     """
     listener_transcript = st.session_state.get("my_transcript", [])
     speaker_transcript = st.session_state.get("other_transcript", [])
-    
+
     # Check if there's any content to save
     if not listener_transcript and not speaker_transcript:
         return False, "没有对话内容可保存", None
-    
+
     # Validate visitor_id
     if not visitor_id or not visitor_id.strip():
         visitor_id = generate_default_visitor_id()
-    
+
     visitor_id = visitor_id.strip()
-    
+
     # Generate AI summary
     summary = ""
     if st.session_state.get("suggestion_engine"):
         try:
             summary = st.session_state.suggestion_engine.generate_session_summary(
-                speaker_transcript=speaker_transcript,
-                listener_transcript=listener_transcript
+                speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
             )
         except Exception as e:
             summary = f"总结生成失败: {str(e)}"
     else:
         summary = "AI 服务未配置，无法生成总结"
-    
+
     # Save to disk
     try:
         filepath = save_session_to_disk(
             visitor_id=visitor_id,
             listener_transcript=listener_transcript,
             speaker_transcript=speaker_transcript,
-            summary=summary
+            summary=summary,
         )
         return True, f"会话已保存到: {filepath}", filepath
     except Exception as e:
@@ -284,4 +279,3 @@ def get_existing_visitor_ids() -> list:
         return get_visitor_ids()
     except Exception:
         return []
-

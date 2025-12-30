@@ -116,22 +116,22 @@ with tab_config:
     st.markdown("### 设备设置")
     devices = get_devices()
     mic_idx, speaker_idx = device_selectors(devices, config.DEFAULT_DEVICE_NAME)
-    
+
     st.markdown("### AI 设置")
     ai_model, ai_interval, ai_context_len, mic_asr, loopback_asr = ai_settings_panel(
         config.OPENAI_MODELS, config.ASR_BACKENDS, config.OPENAI_MODEL
     )
-    
+
     # Update suggestion engine with selected model
     if st.session_state.suggestion_engine:
         st.session_state.suggestion_engine.set_model(ai_model)
         st.session_state.suggestion_engine.set_context_length(ai_context_len)
-    
+
     # Store ASR settings in session state for use when starting recording
     backend_map = {"funasr": "funasr", "openai": "openai", "azure": "azure"}
     st.session_state.mic_asr_backend = backend_map.get(mic_asr, mic_asr)
     st.session_state.loopback_asr_backend = backend_map.get(loopback_asr, loopback_asr)
-    
+
     # Store device selection in session state
     st.session_state.selected_mic_idx = mic_idx
     st.session_state.selected_speaker_idx = speaker_idx
@@ -141,35 +141,35 @@ with tab_config:
 with tab_main:
     # Level meters
     level_meters(st.session_state.mic_rms, st.session_state.loopback_rms)
-    
+
     # Control buttons
     start_clicked, stop_clicked, clear_clicked = control_buttons(st.session_state.is_recording)
-    
+
     # Visitor ID and Save button
     default_visitor_id = st.session_state.get("current_visitor_id", generate_default_visitor_id())
     existing_ids = get_existing_visitor_ids()
     visitor_id, save_clicked = visitor_id_input(default_visitor_id, existing_ids)
-    
+
     # Store current visitor ID in session state
     st.session_state.current_visitor_id = visitor_id
-    
+
     # Get device selection from session state (set in config tab)
     mic_idx = st.session_state.get("selected_mic_idx", 0)
     speaker_idx = st.session_state.get("selected_speaker_idx", 0)
     ai_interval = st.session_state.get("selected_ai_interval", 15)
-    
+
     if start_clicked:
         start_recording(mic_idx, speaker_idx)
         st.rerun()
-    
+
     if stop_clicked:
         stop_recording()
         st.rerun()
-    
+
     if clear_clicked:
         clear_session()
         st.rerun()
-    
+
     # Handle save button click
     if save_clicked:
         with st.spinner("正在保存会话并生成总结..."):
@@ -178,19 +178,19 @@ with tab_main:
             st.success(message)
         else:
             st.error(message)
-    
+
     # Main content - 3 columns
     col_left, col_center, col_right = st.columns([3, 4, 3])
-    
+
     with col_left:
         transcript_panel("倾听者 (我)", "🧑", st.session_state.my_transcript, "blue")
-    
+
     with col_center:
         user_question = ai_suggestions_panel(st.session_state.ai_suggestions)
-    
+
     with col_right:
         transcript_panel("倾诉者 (对方)", "👤", st.session_state.other_transcript, "green")
-    
+
     # Handle user question - if entered, generate immediately
     if user_question and user_question.strip():
         generate_ai_suggestion(interval_seconds=0, user_question=user_question)

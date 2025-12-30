@@ -109,6 +109,7 @@ class Transcriber(threading.Thread):
 
         # Use provided config or fall back to global config module
         import config as default_config
+
         self.config = config if config is not None else default_config
 
         # Audio buffer configuration
@@ -271,7 +272,7 @@ class Transcriber(threading.Thread):
         if text.strip():
             # Update last_text for next context (keep it simple, maybe just the last sentence)
             self.last_text = text.strip()
-            
+
             # Calculate latency from segment start to now
             now = time.time()
             latency = now - self.segment_start_time if self.segment_start_time else 0.0

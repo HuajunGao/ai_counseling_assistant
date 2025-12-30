@@ -58,7 +58,7 @@ class SuggestionEngine:
 
     def generate_suggestions(self, speaker_transcript: list, listener_transcript: list, user_question: str = "") -> str:
         """Generate suggestions based on conversation context.
-        
+
         Args:
             speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
             listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
@@ -69,20 +69,24 @@ class SuggestionEngine:
 
         # Build structured context as JSON
         import json
-        
+
         context_data = {
-            "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
-                      for item in speaker_transcript[-self.context_length:]],
-            "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
-                      for item in listener_transcript[-self.context_length:]],
+            "倾诉者": [
+                {"time": item.get("time", ""), "text": item.get("text", "")}
+                for item in speaker_transcript[-self.context_length :]
+            ],
+            "倾听者": [
+                {"time": item.get("time", ""), "text": item.get("text", "")}
+                for item in listener_transcript[-self.context_length :]
+            ],
         }
-        
+
         if not context_data["倾诉者"] and not context_data["倾听者"]:
             return ""
-        
+
         # Build user message
         user_content = f"对话上下文:\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
-        
+
         if user_question and user_question.strip():
             user_content += f"\n\n倾听者的问题: {user_question.strip()}"
         else:
@@ -96,11 +100,11 @@ class SuggestionEngine:
 
     def generate_session_summary(self, speaker_transcript: list, listener_transcript: list) -> str:
         """Generate a summary of the entire session for archival purposes.
-        
+
         Args:
             speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
             listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
-        
+
         Returns:
             A comprehensive summary of the session
         """
@@ -108,18 +112,16 @@ class SuggestionEngine:
             return "无法生成总结：AI 服务未配置"
 
         import json
-        
+
         # Use all transcripts for summary (not limited by context_length)
         context_data = {
-            "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
-                      for item in speaker_transcript],
-            "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} 
-                      for item in listener_transcript],
+            "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} for item in speaker_transcript],
+            "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} for item in listener_transcript],
         }
-        
+
         if not context_data["倾诉者"] and not context_data["倾听者"]:
             return "无对话内容，无法生成总结"
-        
+
         # Summary-specific system prompt
         summary_system_prompt = """你是一位专业的心理咨询记录整理助手。请根据提供的对话内容，生成一份简洁但全面的会话总结。
 
@@ -138,4 +140,3 @@ class SuggestionEngine:
         except Exception as e:
             logger.error(f"Failed to generate session summary: {e}")
             return f"生成总结时出错：{str(e)}"
-

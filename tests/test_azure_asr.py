@@ -2,16 +2,19 @@
 Simple test script for Azure ASR.
 Usage: uv run tests/test_azure_asr.py
 """
+
 import os
 import numpy as np
 from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def test_azure_asr():
     # Check if azure SDK is available
     try:
         import azure.cognitiveservices.speech as speechsdk
+
         print("✓ azure-cognitiveservices-speech is installed")
     except ImportError as e:
         print(f"✗ azure-cognitiveservices-speech is NOT installed: {e}")
@@ -70,7 +73,7 @@ def test_azure_asr():
             audio_config=audio_config,
         )
         result = recognizer.recognize_once()
-        
+
         if result.reason == speechsdk.ResultReason.RecognizedSpeech:
             print(f"✓ Recognition succeeded: {result.text}")
         elif result.reason == speechsdk.ResultReason.NoMatch:
@@ -82,7 +85,7 @@ def test_azure_asr():
                 print(f"   Error details: {cancellation.error_details}")
         else:
             print(f"? Unknown result: {result.reason}")
-            
+
     except Exception as e:
         print(f"✗ Transcription failed: {e}")
         return

@@ -165,13 +165,10 @@ def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "bl
 def ai_suggestions_panel(suggestions: list):
     """Render AI suggestions panel with question input."""
     st.markdown("**💡 AI 建议**")
-    
+
     # Question input for the counselor
     user_question = st.text_input(
-        "💬 向 AI 提问",
-        placeholder="输入问题后按回车发送...",
-        key="ai_question_input",
-        label_visibility="collapsed"
+        "💬 向 AI 提问", placeholder="输入问题后按回车发送...", key="ai_question_input", label_visibility="collapsed"
     )
 
     container = st.container(height=350)
@@ -182,7 +179,7 @@ def ai_suggestions_panel(suggestions: list):
                     st.markdown(item["text"])
         else:
             st.info("AI 将根据对话内容定期提供建议，或输入问题直接询问...")
-    
+
     return user_question
 
 
@@ -200,7 +197,7 @@ def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
     Returns (visitor_id, save_clicked).
     """
     col1, col2 = st.columns([3, 1])
-    
+
     with col1:
         # Text input for visitor ID with autocomplete hint
         help_text = f"已有来访者: {', '.join(existing_ids[-5:])}" if existing_ids else "输入来访者ID"
@@ -211,11 +208,10 @@ def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
             help=help_text,
             key="visitor_id_input",
         )
-    
+
     with col2:
         # Add some vertical spacing to align with input
         st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
         save_clicked = st.button("💾 保存会话", type="primary", use_container_width=True)
-    
-    return visitor_id, save_clicked
 
+    return visitor_id, save_clicked

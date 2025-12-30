@@ -13,7 +13,8 @@ dependencies = [
     "soundcard",
     "sounddevice",
     "numpy",
-    "torch",
+    "torch @ https://download.pytorch.org/whl/cu121/torch-2.4.1%2Bcu121-cp310-cp310-win_amd64.whl",
+    "torchaudio @ https://download.pytorch.org/whl/cu121/torchaudio-2.4.1%2Bcu121-cp310-cp310-win_amd64.whl",
     "python-dotenv",
     "pywin32",
     "soundfile",
@@ -39,6 +40,7 @@ override-dependencies = [
     "numba>=0.56.0",
     "llvmlite>=0.39.0",
 ]
+
 
 [tool.ruff]
 line-length = 120

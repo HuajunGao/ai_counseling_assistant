@@ -115,12 +115,20 @@ def process_transcripts():
     """Process any pending transcription results."""
     import time as time_module
 
+    def format_time_with_latency(item):
+        """Format time string with latency if available."""
+        time_str = time_module.strftime("%H:%M:%S")
+        latency = item.get("latency", 0)
+        if latency > 0:
+            return f"{time_str}[{latency:.1f}s]"
+        return time_str
+
     # Process mic transcripts
     while not st.session_state.mic_output_queue.empty():
         try:
             item = st.session_state.mic_output_queue.get_nowait()
             if item.get("text"):
-                st.session_state.my_transcript.append({"time": time_module.strftime("%H:%M:%S"), "text": item["text"]})
+                st.session_state.my_transcript.append({"time": format_time_with_latency(item), "text": item["text"]})
         except:
             break
 
@@ -130,7 +138,7 @@ def process_transcripts():
             item = st.session_state.loopback_output_queue.get_nowait()
             if item.get("text"):
                 st.session_state.other_transcript.append(
-                    {"time": time_module.strftime("%H:%M:%S"), "text": item["text"]}
+                    {"time": format_time_with_latency(item), "text": item["text"]}
                 )
         except:
             break

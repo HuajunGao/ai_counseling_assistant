@@ -129,6 +129,7 @@ class Transcriber(threading.Thread):
         self.silence_accum_ms = 0.0
         self.segment_parts = []
         self.segment_frames = 0
+        self.segment_start_time = None  # Track when current segment started
 
         # Context Management
         self.last_text = ""
@@ -228,6 +229,9 @@ class Transcriber(threading.Thread):
 
             # Speech detected
             self.silence_accum_ms = 0.0
+            if not self.segment_parts:
+                # First chunk of new segment - record start time
+                self.segment_start_time = time.time()
             self.segment_parts.append(chunk)
             self.segment_frames += chunk.shape[0]
             segment_ms = (self.segment_frames / self.sample_rate) * 1000.0
@@ -267,12 +271,17 @@ class Transcriber(threading.Thread):
         if text.strip():
             # Update last_text for next context (keep it simple, maybe just the last sentence)
             self.last_text = text.strip()
+            
+            # Calculate latency from segment start to now
+            now = time.time()
+            latency = now - self.segment_start_time if self.segment_start_time else 0.0
 
             self.output_queue.put(
                 {
                     "type": "commit",
                     "text": text.strip(),
-                    "timestamp": time.time(),
+                    "timestamp": now,
+                    "latency": latency,
                 }
             )
 
@@ -280,6 +289,7 @@ class Transcriber(threading.Thread):
         self.segment_parts = []
         self.segment_frames = 0
         self.silence_accum_ms = 0.0
+        self.segment_start_time = None
 
     def stop(self):
         self.running = False

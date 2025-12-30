@@ -39,7 +39,7 @@ FUNASR_MODEL = os.getenv(
     "FUNASR_MODEL",
     "iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch",
 )
-FUNASR_DEVICE = os.getenv("FUNASR_DEVICE", "cuda")
+FUNASR_DEVICE = os.getenv("FUNASR_DEVICE", "cpu")
 FUNASR_VAD_MODEL = os.getenv("FUNASR_VAD_MODEL", "")
 FUNASR_PUNC_MODEL = os.getenv("FUNASR_PUNC_MODEL", "iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch")
 FUNASR_DISABLE_UPDATE = _env_bool("FUNASR_DISABLE_UPDATE", True)

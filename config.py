@@ -53,8 +53,8 @@ OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o")
 
 # AI Suggestion Settings
-AI_SUGGESTION_INTERVAL = int(os.getenv("AI_SUGGESTION_INTERVAL", "15"))  # seconds
-AI_CONTEXT_LENGTH = int(os.getenv("AI_CONTEXT_LENGTH", "15"))  # lines
+AI_SUGGESTION_INTERVAL = int(os.getenv("AI_SUGGESTION_INTERVAL", "30"))  # seconds
+AI_CONTEXT_LENGTH = int(os.getenv("AI_CONTEXT_LENGTH", "10"))  # lines
 SYSTEM_PROMPT_FILE = os.getenv("SYSTEM_PROMPT_FILE", "prompts/counseling_system.txt")
 
 # Available models for UI selection

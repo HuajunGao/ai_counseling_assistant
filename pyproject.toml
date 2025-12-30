@@ -33,6 +33,13 @@ app = "streamlit.web.cli:main"
 #   uv run ruff check .                       - Lint code
 #   uv run ruff format .                      - Format code
 
+[tool.uv]
+# Override transitive dependencies that don't support Python 3.10+
+override-dependencies = [
+    "numba>=0.56.0",
+    "llvmlite>=0.39.0",
+]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"

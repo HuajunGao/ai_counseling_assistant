@@ -155,7 +155,11 @@ def process_transcripts():
         try:
             item = st.session_state.mic_output_queue.get_nowait()
             if item.get("text"):
-                st.session_state.my_transcript.append({"time": format_time_with_latency(item), "text": item["text"]})
+                st.session_state.my_transcript.append({
+                    "time": format_time_with_latency(item),
+                    "text": item["text"],
+                    "timestamp": item.get("timestamp", time.time())
+                })
         except:
             break
 
@@ -164,7 +168,11 @@ def process_transcripts():
         try:
             item = st.session_state.loopback_output_queue.get_nowait()
             if item.get("text"):
-                st.session_state.other_transcript.append({"time": format_time_with_latency(item), "text": item["text"]})
+                st.session_state.other_transcript.append({
+                    "time": format_time_with_latency(item),
+                    "text": item["text"],
+                    "timestamp": item.get("timestamp", time.time())
+                })
         except:
             break
 

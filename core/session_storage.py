@@ -90,12 +90,31 @@ def save_session(
         filename = now.strftime("%Y-%m-%d_%H-%M-%S") + ".json"
         filepath = visitor_dir / filename
 
+    # Merge transcripts into a chronological dialogue
+    dialogue = []
+    for msg in listener_transcript:
+        new_msg = msg.copy()
+        new_msg["role"] = "倾听者"
+        dialogue.append(new_msg)
+    
+    for msg in speaker_transcript:
+        new_msg = msg.copy()
+        new_msg["role"] = "倾诉者"
+        dialogue.append(new_msg)
+    
+    # Sort by timestamp
+    dialogue.sort(key=lambda x: x.get("timestamp", 0))
+
     # Prepare session data
     session_data = {
         "session_id": session_id,
         "visitor_id": visitor_id,
         "timestamp": now.isoformat(),
-        "conversation": {"listener": listener_transcript, "speaker": speaker_transcript},
+        "conversation": {
+            "dialogue": dialogue,  # New chronological format
+            "listener": listener_transcript, 
+            "speaker": speaker_transcript
+        },
         "summary": summary,
     }
 

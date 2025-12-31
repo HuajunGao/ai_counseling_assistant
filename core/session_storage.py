@@ -44,10 +44,12 @@ def get_sessions_for_visitor(visitor_id: str) -> list:
 
     sessions = []
     for item in visitor_dir.iterdir():
-        if item.is_file() and item.suffix == ".json":
+        if item.is_file() and item.suffix == ".json" and item.name != "visitor_profile.json":
             sessions.append(item.name)
 
-    return sorted(sessions)
+    # Sort by modification time to ensure chronological order
+    sessions.sort(key=lambda x: (visitor_dir / x).stat().st_mtime)
+    return sessions
 
 
 def save_session(
@@ -126,7 +128,7 @@ def save_session(
 
     # Update visitor profile if description is provided
     if visitor_description:
-        update_visitor_profile(visitor_id, {"description": visitor_description})
+        update_visitor_profile(visitor_id, visitor_description)
 
     return str(filepath)
 
@@ -137,21 +139,77 @@ def get_visitor_profile(visitor_id: str) -> dict:
     if profile_path.exists():
         try:
             with open(profile_path, "r", encoding="utf-8") as f:
-                return json.load(f)
+                profile = json.load(f)
+                # Ensure all required fields exist with defaults
+                if "personal_info" not in profile:
+                    profile["personal_info"] = {"age": None, "gender": None, "occupation": None, "background": ""}
+                if "last_updated" not in profile:
+                    profile["last_updated"] = None
+                if "session_count" not in profile:
+                    profile["session_count"] = 0
+                return profile
         except Exception:
             pass
-    return {"description": "一位寻求帮助的来访者"}
+    
+    # Default profile
+    return {
+        "description": "一位寻求帮助的来访者",
+        "personal_info": {
+            "age": None,
+            "gender": None,
+            "occupation": None,
+            "background": ""
+        },
+        "last_updated": None,
+        "session_count": 0
+    }
 
 
 def update_visitor_profile(visitor_id: str, data: dict):
-    """Update visitor profile data."""
+    """Update visitor profile data with cumulative merging.
+    
+    Args:
+        data: Dictionary that may contain 'description' and 'personal_info'
+    """
+    from datetime import datetime
+    
     visitor_dir = get_sessions_dir() / visitor_id
     visitor_dir.mkdir(parents=True, exist_ok=True)
     profile_path = visitor_dir / "visitor_profile.json"
     
+    # Load existing profile
     profile = get_visitor_profile(visitor_id)
-    profile.update(data)
     
+    # Update description if provided
+    if "description" in data:
+        profile["description"] = data["description"]
+    
+    # Merge personal_info if provided
+    if "personal_info" in data:
+        new_info = data["personal_info"]
+        existing_info = profile.get("personal_info", {})
+        
+        # Merge each field (only update if new value is not None/empty)
+        for key in ["age", "gender", "occupation", "background"]:
+            new_value = new_info.get(key)
+            if new_value:
+                # For background, append rather than replace
+                if key == "background" and existing_info.get("background"):
+                    # Check if info is already included
+                    if new_value not in existing_info["background"]:
+                        existing_info["background"] = f"{existing_info['background']}; {new_value}"
+                    else:
+                        existing_info["background"] = existing_info["background"]
+                else:
+                    existing_info[key] = new_value
+        
+        profile["personal_info"] = existing_info
+    
+    # Update metadata
+    profile["last_updated"] = datetime.now().isoformat()
+    profile["session_count"] = profile.get("session_count", 0) + 1
+    
+    # Save
     with open(profile_path, "w", encoding="utf-8") as f:
         json.dump(profile, f, ensure_ascii=False, indent=2)
 

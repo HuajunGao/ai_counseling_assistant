@@ -25,6 +25,34 @@ Your goal is to assist the human counselor by providing real-time suggestions.
 Keep suggestions CONCISE (1-2 sentences). Use the same language as the conversation."""
 
 
+def load_prompt(prompt_name: str) -> str:
+    """Load a prompt template from the prompts directory.
+    
+    Args:
+        prompt_name: Name of the prompt file (without .txt extension)
+        
+    Returns:
+        Content of the prompt file, or a default fallback
+    """
+    from pathlib import Path
+    
+    # Get project root (parent of 'core' directory)
+    project_root = Path(__file__).parent.parent
+    prompt_path = project_root / "prompts" / f"{prompt_name}.txt"
+    
+    try:
+        if prompt_path.exists():
+            with open(prompt_path, "r", encoding="utf-8") as f:
+                return f.read().strip()
+        else:
+            logger.warning(f"Prompt file not found: {prompt_path}")
+    except Exception as e:
+        logger.error(f"Failed to load prompt '{prompt_name}': {e}")
+    
+    # Return empty string as fallback
+    return ""
+
+
 class SuggestionEngine:
     def __init__(self, model: str = None, context_length: int = None):
         self.model = model or config.OPENAI_MODEL
@@ -122,8 +150,11 @@ class SuggestionEngine:
         if not context_data["倾诉者"] and not context_data["倾听者"]:
             return "无对话内容，无法生成总结"
 
-        # Summary-specific system prompt
-        summary_system_prompt = """你是一位专业的心理咨询记录整理助手。请根据提供的对话内容，生成一份简洁但全面的会话总结。
+        # Load system prompt from file
+        summary_system_prompt = load_prompt("session_summary")
+        if not summary_system_prompt:
+            # Fallback to hardcoded prompt
+            summary_system_prompt = """你是一位专业的心理咨询记录整理助手。请根据提供的对话内容，生成一份简洁但全面的会话总结。
 
 总结应包含：
 1. 来访者（倾诉者）的主要议题和关注点
@@ -141,24 +172,62 @@ class SuggestionEngine:
             logger.error(f"Failed to generate session summary: {e}")
             return f"生成总结时出错：{str(e)}"
 
-    def generate_visitor_description(self, speaker_transcript: list, listener_transcript: list) -> str:
-        """Generate a one-sentence description of the visitor based on the conversation."""
+    def generate_visitor_description(self, speaker_transcript: list, listener_transcript: list, previous_profile: dict = None) -> dict:
+        """Generate or update visitor profile based on conversation.
+        
+        Args:
+            speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
+            listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
+            previous_profile: Optional existing profile with 'description' and 'personal_info'
+            
+        Returns:
+            Dictionary with 'description' and 'personal_info' fields
+        """
         if not self.provider:
-            return "一位来访者"
+            return {
+                "description": "一位来访者",
+                "personal_info": {"age": None, "gender": None, "occupation": None, "background": ""}
+            }
 
         import json
 
+        # Prepare conversation context
         context_data = {
             "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} for item in speaker_transcript],
             "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} for item in listener_transcript],
         }
 
-        system_prompt = "你是一位专业的心理咨询记录整理助手。请根据对话内容，为这位来访者写一句非常简短的描述（一句话，不超过30字），概括其核心困扰或性格特征。"
-        user_content = f"请为此来访者生成一句话描述：\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+        # Load system prompt from file
+        system_prompt = load_prompt("visitor_profile")
+        if not system_prompt:
+            # Fallback
+            system_prompt = "你是一位专业的心理咨询记录整理助手。请根据对话内容，为这位来访者生成档案信息。"
+
+        # Construct user message with previous profile if exists
+        user_parts = []
+        if previous_profile:
+            user_parts.append(f"## 过往档案信息\n\n之前的描述：{previous_profile.get('description', '无')}")
+            prev_info = previous_profile.get('personal_info', {})
+            if prev_info:
+                user_parts.append(f"之前的个人信息：\n{json.dumps(prev_info, ensure_ascii=False, indent=2)}")
+        
+        user_parts.append(f"## 当前会话对话内容\n\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```")
+        user_content = "\n\n".join(user_parts)
 
         try:
-            description = self.provider.generate(user_content, system_prompt=system_prompt)
-            return description.strip().replace("\n", " ")
+            response = self.provider.generate(user_content, system_prompt=system_prompt)
+            # Parse JSON response
+            profile_data = json.loads(response)
+            return profile_data
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse visitor profile JSON: {e}. Response: {response}")
+            return {
+                "description": "一位寻求帮助的来访者",
+                "personal_info": {"age": None, "gender": None, "occupation": None, "background": ""}
+            }
         except Exception as e:
-            logger.error(f"Failed to generate visitor description: {e}")
-            return "一位寻求帮助的来访者"
+            logger.error(f"Failed to generate visitor profile: {e}")
+            return {
+                "description": "一位寻求帮助的来访者",
+                "personal_info": {"age": None, "gender": None, "occupation": None, "background": ""}
+            }

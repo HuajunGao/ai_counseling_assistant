@@ -269,10 +269,14 @@ def save_session(visitor_id: str) -> tuple:
                 speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
             )
             
-            # Generate description if it's a new visitor or we want to update it
-            # For simplicity, we'll generate it every time or could check get_visitor_profile
-            visitor_description = st.session_state.suggestion_engine.generate_visitor_description(
-                speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
+            # Load existing profile for cumulative updates
+            existing_profile = get_visitor_profile(visitor_id)
+            
+            # Generate/update visitor profile with cumulative context
+            visitor_profile_data = st.session_state.suggestion_engine.generate_visitor_description(
+                speaker_transcript=speaker_transcript,
+                listener_transcript=listener_transcript,
+                previous_profile=existing_profile
             )
         except Exception as e:
             summary = f"总结生成失败: {str(e)}"
@@ -286,7 +290,7 @@ def save_session(visitor_id: str) -> tuple:
             listener_transcript=listener_transcript,
             speaker_transcript=speaker_transcript,
             summary=summary,
-            visitor_description=visitor_description,
+            visitor_description=visitor_profile_data,
         )
         return True, f"会话已保存到: {filepath}", filepath
     except Exception as e:

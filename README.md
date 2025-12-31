@@ -1,109 +1,73 @@
 # AI Counseling Assistant
 
-A local AI-powered counseling copilot that transcribes audio (microphone or system output) and provides real-time suggestions using LLMs (Ollama, OpenAI).
+A localized AI-powered counseling copilot designed to assist professional counselors. It features real-time dual-stream transcription, live AI-driven supervision, and comprehensive session management including visitor profiles and historical session browsing.
 
-## Features
+## ✨ Core Features
 
-- **Real-time Transcription**: Supports multiple backends (FasterWhisper, FunASR, OpenAI, Azure).
-- **Two Modes**:
-    1.  **Counseling Copilot (Main App)**: Captures microphone input for live sessions.
-    2.  **System Audio Transcriber**: Captures system output (e.g., meetings, videos) via WASAPI loopback.
-- **AI Suggestions**: Generates counseling tips based on the transcript.
+- **🎬 Real-time Dual-Stream Transcription**: Simulataneously captures input from the Counselor (Microphone) and the Client (System Audio via WASAPI loopback).
+- **🤖 AI Live Supervision**: Provides precise, concise professional suggestions based on real-time conversation context. Supports manual queries to the AI.
+- **📝 Chronological Dialogue Storage**: Saves session records in a natural dialogue format (sorted by time) instead of separate tracks.
+- **📜 Visitor Profiles & History**:
+    - **Automated Profiling**: AI automatically generates a one-sentence descriptive summary for each visitor.
+    - **History Browser**: Filter past records by Visitor ID, view AI-generated session summaries, and expand full conversational histories.
+- **🚀 Multi-Backend ASR Support**: Flexible switching between FunASR (optimized for Mandarin), OpenAI Whisper, Azure Speech, etc.
 
-## Setup
+## 🛠️ Prerequisites
 
-1.  **Prerequisites**:
+1.  **System Requirements**:
     - Python 3.10+
-    - [ffmpeg](https://ffmpeg.org/download.html) installed and added to PATH.
-    - [Ollama](https://ollama.com/) (optional, for local LLM).
+    - [ffmpeg](https://ffmpeg.org/download.html) installed and added to your system PATH.
+    - Microsoft Windows (required for WASAPI loopback support).
 
-2.  **Install Dependencies**:
+2.  **Installation**:
     ```bash
     pip install -r requirements.txt
     ```
-    *Note: For GPU support, ensure you have CUDA installed and the appropriate `torch` version.*
+    *Note: For GPU acceleration, ensure CUDA is installed and configured in `config.py`.*
 
-3.  **Configuration**:
-    Create a `.env` file in the root directory (copied from `.env.example` if available) or set environment variables:
+3.  **Environment Setup**:
+    Create a `.env` file in the root directory or modify `config.py` directly:
     ```env
-    # ASR Selection: local (FasterWhisper), funasr, openai, azure
-    ASR_BACKEND=local
-    ASR_LANGUAGE=zh
-    
-    # Model Config
-    WHISPER_MODEL_SIZE=small
-    DEVICE=cuda
-    COMPUTE_TYPE=float16
-    
-    # LLM Config
-    LLM_PROVIDER=ollama
-    OLLAMA_MODEL=llama3
+    OPENAI_API_KEY=your_key
+    OPENAI_BASE_URL=https://api.openai.com/v1
+    ASR_BACKEND=funasr  # Options: funasr, openai, azure, local
     ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
-# Start the main Streamlit app
-uv run app
-
-# Or use the full command
+# Start the Streamlit application
 uv run streamlit run ui/streamlit_app.py
 ```
 
-The app opens at `http://localhost:8501`. Select your microphone and speaker devices, then click "开始录制".
+The application will be available at `http://localhost:8501`.
 
-## Usage
+## 📖 Usage Guide
 
-### 1. Main Application (Streamlit)
-The primary interface for counseling sessions with dual-stream transcription (your mic + system audio).
+### 1. 📝 Real-time Session
+- Select your **Microphone** and **Speaker** devices in the **Settings** tab.
+- Click **Start Recording** to begin the session.
+- AI feedback will appear on the right panel automatically or upon manual request.
 
-```bash
-uv run app
-```
-- Opens a web interface at `http://localhost:8501`.
-- Select your **Microphone** (我) and **Speaker** (对方) devices.
+### 2. 💾 Saving Sessions
+- Input a **Visitor ID** (defaults to current timestamp).
+- Click **Save Session**. The system will generate an AI summary and visitor description, then store the record in the `sessions/` directory.
 
-### 2. System Audio Transcription (Loopback)
-Use this to transcribe audio playing from your computer (e.g., a Zoom call, video, or the "Foreground Player" simulation).
+### 3. 📜 Session History
+- Switch to the **History** tab.
+- Search or select a Visitor ID to view their AI profile.
+- Select a specific session date to see the summary and expand the full dialogue history.
 
-**Integration Note**: This uses a specialized script with WASAPI Loopback support.
+## 💻 Tech Stack
 
-1.  **List Devices**:
-    ```bash
-    python output_transcription/transcribe_output.py --list-devices
-    ```
-    *Look for your Speaker/Headphones in the Output devices list (e.g., Device 25).*
+- **Frontend**: Streamlit
+- **ASR**: FunASR / OpenAI Whisper / Azure Speech
+- **LLM**: GPT-4o / Claude / Ollama
+- **Audio Utility**: SoundCard (WASAPI), PyAudio
+- **Concurrency**: Threading + Asyncio
 
-2.  **Start Capture**:
-    Use the ID of your output device to capture its audio.
-    ```bash
-    python output_transcription/transcribe_output.py --device-id <DEVICE_ID>
-    ```
-    *Example: If your Speakerphone is Device 25, use `--device-id 25`. This will capture what you hear.*
+## ❓ Troubleshooting
 
-## Troubleshooting
-
-- **No Audio**: Check if the correct device ID is selected. WASAPI Loopback requires an active output stream (play some audio to test).
-- **Crash on Start**: Ensure `ffmpeg` is on your PATH. If using CUDA, verify Nvidia drivers.
-- **MKL Conflict**: If you see a silent crash, set `KMP_DUPLICATE_LIB_OK=TRUE` in your environment.
-
-## Model Comparison commands
-To compare different ASR backends, you can use the following commands (replace `<ID>` with your output device ID):
-
-### 1. Faster-Whisper (Local, Recommended for General Use)
-Uses standard Whisper models. 'large-v3' is the most accurate.
-```bash
-uv run output_transcription/transcribe_output.py --device-id <ID> --asr-backend local --model large-v3 --dynamic-chunks --vad
-```
-
-### 2. FunASR (Best for Chinese)
-Uses Alibaba's Paraformer model, highly optimized for Mandarin.
-```bash
-uv run output_transcription/transcribe_output.py --device-id <ID> --asr-backend funasr --funasr-model iic/speech_paraformer-large-vad-punc_asr_nat-zh-cn-16k-common-vocab8404-pytorch --dynamic-chunks --vad
-```
-
-### 3. OpenAI API (Highest Accuracy but Costly)
-Sends audio to OpenAI's hosted Whisper service. Requires `OPENAI_API_KEY`.
-```bash
-uv run output_transcription/transcribe_output.py --device-id <ID> --asr-backend openai --openai-model whisper-1 --dynamic-chunks --vad
-```
+- **sessions folder missing?**: It is listed in `.gitignore` but exists locally. You can access it via File Explorer.
+- **MKL Conflict**: If the app crashes silently, set the environment variable `KMP_DUPLICATE_LIB_OK=TRUE`.
+- **No audio captured?**: Ensure you've selected correct active devices and the speaker has actual sound output.

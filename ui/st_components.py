@@ -217,7 +217,7 @@ def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
     return visitor_id, save_clicked
 
 
-def history_viewer(visitor_info: list, get_sessions_func, load_session_func):
+def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get_profile_func):
     """
     Render the history browser.
     
@@ -225,6 +225,7 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func):
         visitor_info: List of {"id": str, "description": str}
         get_sessions_func: Function(visitor_id) -> list of filenames
         load_session_func: Function(visitor_id, filename) -> session_dict
+        get_profile_func: Function(visitor_id) -> visitor profile dict
     """
     if not visitor_info:
         st.info("暂无历史记录。")
@@ -238,28 +239,68 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func):
         format_func=lambda x: f"{x} - {next(v['description'] for v in visitor_info if v['id'] == x)}"
     )
     
-    # 2. Session List for selected visitor
+    # 2. Display Visitor Personal Info Card (stays visible)
     if selected_v_id:
+        profile = get_profile_func(selected_v_id)
+        
+        # Personal Info Card
+        st.markdown("### 👤 来访者档案")
+        
+        personal_info = profile.get("personal_info", {})
+        session_count = profile.get("session_count", 0)
+        last_updated = profile.get("last_updated", "")
+        
+        # Create info display with columns
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("累计会话", f"{session_count} 次")
+        
+        with col2:
+            age = personal_info.get("age") or "未录入"
+            st.metric("年龄", age)
+        
+        with col3:
+            gender = personal_info.get("gender") or "未录入"
+            st.metric("性别", gender)
+        
+        # Occupation and Background in expandable section
+        with st.expander("📋 详细信息", expanded=True):
+            occupation = personal_info.get("occupation")
+            background = personal_info.get("background")
+            
+            if occupation:
+                st.markdown(f"**职业**: {occupation}")
+            else:
+                st.markdown("**职业**: 未录入")
+            
+            if background:
+                st.markdown(f"**背景信息**: {background}")
+            else:
+                st.markdown("**背景信息**: 暂无")
+        
+        st.divider()
+        
+        # 3. Session List for selected visitor
         sessions = get_sessions_func(selected_v_id)
         if not sessions:
             st.warning("该来访者暂无保存的会话。")
             return
             
-        # Reverse to show newest first
+        # Session selection
+        st.markdown("### 📅 会话记录")
         selected_session_file = st.selectbox(
             "选择会话日期",
             options=list(reversed(sessions)),
-            format_func=lambda x: x.replace(".json", "")
+            format_func=lambda x: x.replace(".json", ""),
+            label_visibility="collapsed"
         )
         
         if selected_session_file:
             session_data = load_session_func(selected_v_id, selected_session_file)
             
-            # 3. Session Details
-            st.divider()
-            
             # Summary Section
-            st.subheader("💡 会话提要")
+            st.markdown("#### 💡 会话提要")
             st.info(session_data.get("summary", "无提要"))
             
             # Dialogue Details

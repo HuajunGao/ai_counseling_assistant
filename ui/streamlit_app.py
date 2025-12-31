@@ -144,12 +144,14 @@ with tab_config:
 with tab_history:
     st.markdown("### 🔍 浏览过往记录")
     from ui.st_components import history_viewer
+    from core.session_storage import get_visitor_profile
     
     visitor_info = get_all_visitor_info()
     history_viewer(
         visitor_info=visitor_info,
         get_sessions_func=get_sessions_list,
-        load_session_func=load_specific_session
+        load_session_func=load_specific_session,
+        get_profile_func=get_visitor_profile
     )
 
 # ===== MAIN TAB =====

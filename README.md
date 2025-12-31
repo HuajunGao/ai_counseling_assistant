@@ -68,6 +68,5 @@ The application will be available at `http://localhost:8501`.
 
 ## ❓ Troubleshooting
 
-- **sessions folder missing?**: It is listed in `.gitignore` but exists locally. You can access it via File Explorer.
 - **MKL Conflict**: If the app crashes silently, set the environment variable `KMP_DUPLICATE_LIB_OK=TRUE`.
 - **No audio captured?**: Ensure you've selected correct active devices and the speaker has actual sound output.

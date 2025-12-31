@@ -11,5 +11,5 @@ __pycache__/
 benchmark.wav
 run_local.log
 songguo*.txt
-# sessions/
+sessions/
 notes

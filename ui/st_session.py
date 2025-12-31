@@ -289,6 +289,18 @@ def save_session(visitor_id: str, private_notes: Optional[str] = None) -> tuple:
     else:
         summary = "（此会话仅包含私密笔记，无对话内容）"
 
+    # Proofread transcript if it exists
+    dialogue_corrected = None
+    if listener_transcript or speaker_transcript:
+        if st.session_state.get("suggestion_engine"):
+            try:
+                # This returns a combined chronological list with corrected_text
+                dialogue_corrected = st.session_state.suggestion_engine.proofread_transcript(
+                    speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
+                )
+            except Exception as e:
+                logger.error(f"Proofreading failed: {e}")
+
     # Save to disk
     try:
         filepath = save_session_to_disk(
@@ -298,6 +310,7 @@ def save_session(visitor_id: str, private_notes: Optional[str] = None) -> tuple:
             summary=summary,
             visitor_description=visitor_profile_data,
             private_notes=private_notes,
+            dialogue_override=dialogue_corrected
         )
         return True, f"会话已保存到: {filepath}", filepath
     except Exception as e:

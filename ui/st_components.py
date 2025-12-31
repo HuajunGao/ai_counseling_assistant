@@ -380,14 +380,31 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get
             # Dialogue Details
             with st.expander("📝 详细对话历史", expanded=False):
                 conversation = session_data.get("conversation", {})
-                dialogue = conversation.get("dialogue")
+                
+                # Support new structure (original/corrected) and legacy (dialogue)
+                if "original" in conversation:
+                    # New structure
+                    original_dialogue = conversation.get("original", [])
+                    corrected_dialogue = conversation.get("corrected", [])
+                    
+                    # Add Smart Correction toggle
+                    use_corrected = st.checkbox("🛠️ 智能纠错模式", value=True, key=f"correction_toggle_{selected_v_id}_{selected_session_file}")
+                    
+                    dialogue = corrected_dialogue if use_corrected else original_dialogue
+                else:
+                    # Legacy structure - fallback to dialogue field
+                    dialogue = conversation.get("dialogue")
                 
                 if dialogue:
-                    # New chronological format
+                    # Chronological format
                     for msg in dialogue:
                         role = msg.get("role", "未知")
                         time_str = msg.get("time", "")
                         text = msg.get("text", "")
+                        
+                        # Show merge indicator if present
+                        merged_from = msg.get("merged_from")
+                        merge_indicator = " 🔗" if merged_from else ""
                         
                         align = "left" if role == "倾诉者" else "right"
                         bg_color = "#f0fdf4" if role == "倾诉者" else "#eff6ff"
@@ -397,7 +414,7 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get
                             f"""
                             <div style='display: flex; flex-direction: column; align-items: {"flex-start" if align=="left" else "flex-end"}; margin: 10px 0;'>
                                 <div style='font-size: 0.8em; color: {label_color}; margin-bottom: 2px;'>
-                                    {role} [{time_str}]
+                                    {role} [{time_str}]{merge_indicator}
                                 </div>
                                 <div style='background: {bg_color}; color: #1a1a1a; padding: 10px; border-radius: 10px; max-width: 80%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);'>
                                     {text}
@@ -407,7 +424,7 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get
                             unsafe_allow_html=True
                         )
                 else:
-                    # Fallback to legacy separate columns
+                    # Fallback to legacy separate columns (very old format)
                     col1, col2 = st.columns(2)
                     with col1:
                         st.markdown("**倾听者**")

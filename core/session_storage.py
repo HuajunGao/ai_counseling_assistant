@@ -60,6 +60,7 @@ def save_session(
     visitor_description: Optional[dict] = None,
     private_notes: Optional[str] = None,
     start_time: Optional[datetime] = None,
+    dialogue_override: Optional[list] = None
 ) -> str:
     """
     Save a counseling session to disk.
@@ -67,11 +68,12 @@ def save_session(
     Args:
         visitor_id: The visitor/client ID (folder name)
         listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
-        speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
+        speaker_transcript: List of {"time": str, "text": str} from 倾倾诉者 (client)
         summary: AI-generated session summary
         visitor_description: Optional dictionary containing description and personal_info
         private_notes: Optional counselor's private notes
         start_time: Optional session start time (defaults to now)
+        dialogue_override: Optional pre-processed dialogue list (e.g. from AI correction)
 
     Returns:
         Path to the saved session file
@@ -97,29 +99,31 @@ def save_session(
         filepath = visitor_dir / filename
 
     # Merge transcripts into a chronological dialogue
-    dialogue = []
-    for msg in listener_transcript:
-        new_msg = msg.copy()
-        new_msg["role"] = "倾听者"
-        dialogue.append(new_msg)
-    
-    for msg in speaker_transcript:
-        new_msg = msg.copy()
-        new_msg["role"] = "倾诉者"
-        dialogue.append(new_msg)
-    
-    # Sort by timestamp
-    dialogue.sort(key=lambda x: x.get("timestamp", 0))
+    if dialogue_override:
+        dialogue = dialogue_override
+    else:
+        dialogue = []
+        for msg in listener_transcript:
+            new_msg = msg.copy()
+            new_msg["role"] = "倾听者"
+            dialogue.append(new_msg)
+        
+        for msg in speaker_transcript:
+            new_msg = msg.copy()
+            new_msg["role"] = "倾诉者"
+            dialogue.append(new_msg)
+        
+        # Sort by timestamp
+        dialogue.sort(key=lambda x: x.get("time", "")) # Use 'time' as per SuggestionEngine combined sort
 
-    # Prepare session data
+    # Prepare session data with new structure
     session_data = {
         "session_id": session_id,
         "visitor_id": visitor_id,
         "timestamp": now.isoformat(),
         "conversation": {
-            "dialogue": dialogue,  # New chronological format
-            "listener": listener_transcript, 
-            "speaker": speaker_transcript
+            "original": dialogue,  # Raw ASR chronological dialogue
+            "corrected": dialogue_override if dialogue_override else dialogue  # AI-corrected version
         },
         "summary": summary,
         "private_notes": private_notes,

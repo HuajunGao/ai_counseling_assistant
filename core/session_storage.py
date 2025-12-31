@@ -57,7 +57,8 @@ def save_session(
     listener_transcript: list,
     speaker_transcript: list,
     summary: str,
-    visitor_description: Optional[str] = None,
+    visitor_description: Optional[dict] = None,
+    private_notes: Optional[str] = None,
     start_time: Optional[datetime] = None,
 ) -> str:
     """
@@ -68,7 +69,8 @@ def save_session(
         listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
         speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
         summary: AI-generated session summary
-        visitor_description: Optional one-sentence description of the visitor
+        visitor_description: Optional dictionary containing description and personal_info
+        private_notes: Optional counselor's private notes
         start_time: Optional session start time (defaults to now)
 
     Returns:
@@ -120,6 +122,7 @@ def save_session(
             "speaker": speaker_transcript
         },
         "summary": summary,
+        "private_notes": private_notes,
     }
 
     # Write to file
@@ -208,6 +211,38 @@ def update_visitor_profile(visitor_id: str, data: dict):
     # Update metadata
     profile["last_updated"] = datetime.now().isoformat()
     profile["session_count"] = profile.get("session_count", 0) + 1
+    
+    # Save
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profile, f, ensure_ascii=False, indent=2)
+
+
+def save_visitor_profile(visitor_id: str, profile_data: dict):
+    """Save visitor profile data from manual edits.
+    
+    Args:
+        visitor_id: The visitor ID
+        profile_data: Dictionary containing 'description' and 'personal_info'
+    """
+    from datetime import datetime
+    
+    visitor_dir = get_sessions_dir() / visitor_id
+    visitor_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = visitor_dir / "visitor_profile.json"
+    
+    # Load existing to preserve fields like session_count
+    profile = get_visitor_profile(visitor_id)
+    
+    # Overwrite with new data
+    if "description" in profile_data:
+        profile["description"] = profile_data["description"]
+    
+    if "personal_info" in profile_data:
+        profile["personal_info"] = profile_data["personal_info"]
+    
+    # Update timestamp
+    profile["last_updated"] = datetime.now().isoformat()
+    # Note: We do NOT increment session_count here as this is a manual edit
     
     # Save
     with open(profile_path, "w", encoding="utf-8") as f:

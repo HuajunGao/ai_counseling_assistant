@@ -144,14 +144,15 @@ with tab_config:
 with tab_history:
     st.markdown("### 🔍 浏览过往记录")
     from ui.st_components import history_viewer
-    from core.session_storage import get_visitor_profile
+    from core.session_storage import get_visitor_profile, save_visitor_profile
     
     visitor_info = get_all_visitor_info()
     history_viewer(
         visitor_info=visitor_info,
         get_sessions_func=get_sessions_list,
         load_session_func=load_specific_session,
-        get_profile_func=get_visitor_profile
+        get_profile_func=get_visitor_profile,
+        save_profile_func=save_visitor_profile
     )
 
 # ===== MAIN TAB =====
@@ -165,7 +166,7 @@ with tab_main:
     # Visitor ID and Save button
     default_visitor_id = st.session_state.get("current_visitor_id", generate_default_visitor_id())
     existing_ids = get_existing_visitor_ids()
-    visitor_id, save_clicked = visitor_id_input(default_visitor_id, existing_ids)
+    visitor_id, save_clicked, private_notes = visitor_id_input(default_visitor_id, existing_ids)
 
     # Store current visitor ID in session state
     st.session_state.current_visitor_id = visitor_id
@@ -190,7 +191,7 @@ with tab_main:
     # Handle save button click
     if save_clicked:
         with st.spinner("正在保存会话并生成总结..."):
-            success, message, filepath = save_session(visitor_id)
+            success, message, filepath = save_session(visitor_id, private_notes)
         if success:
             st.success(message)
         else:

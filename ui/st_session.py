@@ -237,7 +237,7 @@ def clear_session():
                 break
 
 
-def save_session(visitor_id: str) -> tuple:
+def save_session(visitor_id: str, private_notes: Optional[str] = None) -> tuple:
     """
     Save the current session to disk with AI-generated summary.
 
@@ -250,38 +250,44 @@ def save_session(visitor_id: str) -> tuple:
     listener_transcript = st.session_state.get("my_transcript", [])
     speaker_transcript = st.session_state.get("other_transcript", [])
 
-    # Check if there's any content to save
-    if not listener_transcript and not speaker_transcript:
-        return False, "没有对话内容可保存", None
+    # Check if there's any content to save (either transcripts or private notes)
+    if not listener_transcript and not speaker_transcript and not private_notes:
+        return False, "没有对话内容或笔记可保存", None
 
     # Validate visitor_id
     if not visitor_id or not visitor_id.strip():
-        visitor_id = generate_default_visitor_id()
+        if st.session_state.get("current_visitor_id"):
+            visitor_id = st.session_state.current_visitor_id
+        else:
+            visitor_id = generate_default_visitor_id()
 
     visitor_id = visitor_id.strip()
 
-    # Generate AI summary and visitor description
+    # Generate AI summary and visitor description only if there's dialogue
     summary = ""
-    visitor_description = None
-    if st.session_state.get("suggestion_engine"):
-        try:
-            summary = st.session_state.suggestion_engine.generate_session_summary(
-                speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
-            )
-            
-            # Load existing profile for cumulative updates
-            existing_profile = get_visitor_profile(visitor_id)
-            
-            # Generate/update visitor profile with cumulative context
-            visitor_profile_data = st.session_state.suggestion_engine.generate_visitor_description(
-                speaker_transcript=speaker_transcript,
-                listener_transcript=listener_transcript,
-                previous_profile=existing_profile
-            )
-        except Exception as e:
-            summary = f"总结生成失败: {str(e)}"
+    visitor_profile_data = None
+    
+    if listener_transcript or speaker_transcript:
+        if st.session_state.get("suggestion_engine"):
+            try:
+                summary = st.session_state.suggestion_engine.generate_session_summary(
+                    speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
+                )
+                
+                # Load existing profile for cumulative updates
+                existing_profile = get_visitor_profile(visitor_id)
+                
+                # Generate/update visitor profile with cumulative context
+                visitor_profile_data = st.session_state.suggestion_engine.generate_visitor_description(
+                    speaker_transcript=speaker_transcript,
+                    listener_transcript=listener_transcript,
+                    previous_profile=existing_profile
+                )
+            except Exception as e:
+                # Log but continue saving (we don't want to lose the dialogue if AI fails)
+                summary = f"（摘要生成失败: {str(e)}）"
     else:
-        summary = "AI 服务未配置，无法生成总结"
+        summary = "（此会话仅包含私密笔记，无对话内容）"
 
     # Save to disk
     try:
@@ -291,6 +297,7 @@ def save_session(visitor_id: str) -> tuple:
             speaker_transcript=speaker_transcript,
             summary=summary,
             visitor_description=visitor_profile_data,
+            private_notes=private_notes,
         )
         return True, f"会话已保存到: {filepath}", filepath
     except Exception as e:

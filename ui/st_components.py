@@ -209,15 +209,23 @@ def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
             key="visitor_id_input",
         )
 
+    # Add Private Notes text area
+    private_notes = st.text_area(
+        "📝 咨询师私密笔记 (仅保存在本地，AI 不可见)",
+        placeholder="在这里记录您的感悟、督导重点或下次会话目标...",
+        key="private_notes_input",
+        height=100
+    )
+
     with col2:
         # Add some vertical spacing to align with input
         st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
         save_clicked = st.button("💾 保存会话", type="primary", use_container_width=True)
 
-    return visitor_id, save_clicked
+    return visitor_id, save_clicked, private_notes
 
 
-def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get_profile_func):
+def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get_profile_func, save_profile_func=None):
     """
     Render the history browser.
     
@@ -226,6 +234,7 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get
         get_sessions_func: Function(visitor_id) -> list of filenames
         load_session_func: Function(visitor_id, filename) -> session_dict
         get_profile_func: Function(visitor_id) -> visitor profile dict
+        save_profile_func: Function(visitor_id, profile_data) -> None
     """
     if not visitor_info:
         st.info("暂无历史记录。")
@@ -243,41 +252,101 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get
     if selected_v_id:
         profile = get_profile_func(selected_v_id)
         
-        # Personal Info Card
-        st.markdown("### 👤 来访者档案")
+        # Initialize edit state in session_state if not present
+        edit_key = f"edit_mode_{selected_v_id}"
+        if edit_key not in st.session_state:
+            st.session_state[edit_key] = False
+            
+        # Personal Info Card Header
+        col_title, col_edit = st.columns([5, 1])
+        with col_title:
+            st.markdown("### 👤 来访者档案")
+        with col_edit:
+            if not st.session_state[edit_key]:
+                if st.button("📝 编辑", key=f"btn_edit_{selected_v_id}"):
+                    st.session_state[edit_key] = True
+                    st.rerun()
         
         personal_info = profile.get("personal_info", {})
         session_count = profile.get("session_count", 0)
-        last_updated = profile.get("last_updated", "")
         
-        # Create info display with columns
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("累计会话", f"{session_count} 次")
-        
-        with col2:
-            age = personal_info.get("age") or "未录入"
-            st.metric("年龄", age)
-        
-        with col3:
-            gender = personal_info.get("gender") or "未录入"
-            st.metric("性别", gender)
-        
-        # Occupation and Background in expandable section
-        with st.expander("📋 详细信息", expanded=True):
-            occupation = personal_info.get("occupation")
-            background = personal_info.get("background")
+        if st.session_state[edit_key]:
+            # Edit Mode
+            with st.form(key=f"edit_form_{selected_v_id}"):
+                st.markdown("**正在编辑档案内容**")
+                
+                # Basic Description
+                description = st.text_area("档案概括", value=profile.get("description", ""), height=100)
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    age = st.text_input("年龄", value=personal_info.get("age") or "")
+                with col2:
+                    gender = st.selectbox("性别", options=["未录入", "男", "女", "其他"], 
+                                         index=["未录入", "男", "女", "其他"].index(personal_info.get("gender") if personal_info.get("gender") in ["男", "女", "其他"] else "未录入"))
+                
+                occupation = st.text_input("职业", value=personal_info.get("occupation") or "")
+                background = st.text_area("背景信息 / 累计历史", value=personal_info.get("background") or "", height=200)
+                
+                col_save, col_cancel = st.columns([1, 1])
+                with col_save:
+                    if st.form_submit_button("✅ 保存修改", type="primary", use_container_width=True):
+                        # Prepare data
+                        save_data = {
+                            "description": description,
+                            "personal_info": {
+                                "age": age if age else None,
+                                "gender": gender if gender != "未录入" else None,
+                                "occupation": occupation if occupation else None,
+                                "background": background
+                            }
+                        }
+                        # Call save function
+                        if save_profile_func:
+                            save_profile_func(selected_v_id, save_data)
+                        else:
+                            # Fallback
+                            from core.session_storage import save_visitor_profile
+                            save_visitor_profile(selected_v_id, save_data)
+                            
+                        st.session_state[edit_key] = False
+                        st.success("档案已更新")
+                        st.rerun()
+                
+                with col_cancel:
+                    if st.form_submit_button("❌ 取消", use_container_width=True):
+                        st.session_state[edit_key] = False
+                        st.rerun()
+        else:
+            # View Mode
+            # Create info display with columns
+            col1, col2, col3 = st.columns(3)
             
-            if occupation:
-                st.markdown(f"**职业**: {occupation}")
-            else:
-                st.markdown("**职业**: 未录入")
+            with col1:
+                st.metric("累计会话", f"{session_count} 次")
             
-            if background:
-                st.markdown(f"**背景信息**: {background}")
-            else:
-                st.markdown("**背景信息**: 暂无")
+            with col2:
+                age_val = personal_info.get("age") or "未录入"
+                st.metric("年龄", age_val)
+            
+            with col3:
+                gender_val = personal_info.get("gender") or "未录入"
+                st.metric("性别", gender_val)
+            
+            # Occupation and Background in expandable section
+            with st.expander("📋 详细信息", expanded=True):
+                st.markdown(f"**档案概括**: {profile.get('description', '无')}")
+                st.divider()
+                
+                occ_val = personal_info.get("occupation")
+                st.markdown(f"**职业**: {occ_val or '未录入'}")
+                
+                bg_val = personal_info.get("background")
+                st.markdown(f"**背景信息 / 累计历史**:")
+                if bg_val:
+                    st.markdown(bg_val)
+                else:
+                    st.markdown("*暂无背景信息*")
         
         st.divider()
         
@@ -302,6 +371,11 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func, get
             # Summary Section
             st.markdown("#### 💡 会话提要")
             st.info(session_data.get("summary", "无提要"))
+            
+            # Private Notes Section
+            private_notes = session_data.get("private_notes")
+            if private_notes:
+                st.text_area("📝 私密笔记", value=private_notes, height=150, disabled=True)
             
             # Dialogue Details
             with st.expander("📝 详细对话历史", expanded=False):

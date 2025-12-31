@@ -55,6 +55,7 @@ def save_session(
     listener_transcript: list,
     speaker_transcript: list,
     summary: str,
+    visitor_description: Optional[str] = None,
     start_time: Optional[datetime] = None,
 ) -> str:
     """
@@ -65,6 +66,7 @@ def save_session(
         listener_transcript: List of {"time": str, "text": str} from 倾听者 (counselor)
         speaker_transcript: List of {"time": str, "text": str} from 倾诉者 (client)
         summary: AI-generated session summary
+        visitor_description: Optional one-sentence description of the visitor
         start_time: Optional session start time (defaults to now)
 
     Returns:
@@ -122,7 +124,36 @@ def save_session(
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(session_data, f, ensure_ascii=False, indent=2)
 
+    # Update visitor profile if description is provided
+    if visitor_description:
+        update_visitor_profile(visitor_id, {"description": visitor_description})
+
     return str(filepath)
+
+
+def get_visitor_profile(visitor_id: str) -> dict:
+    """Get visitor profile data."""
+    profile_path = get_sessions_dir() / visitor_id / "visitor_profile.json"
+    if profile_path.exists():
+        try:
+            with open(profile_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"description": "一位寻求帮助的来访者"}
+
+
+def update_visitor_profile(visitor_id: str, data: dict):
+    """Update visitor profile data."""
+    visitor_dir = get_sessions_dir() / visitor_id
+    visitor_dir.mkdir(parents=True, exist_ok=True)
+    profile_path = visitor_dir / "visitor_profile.json"
+    
+    profile = get_visitor_profile(visitor_id)
+    profile.update(data)
+    
+    with open(profile_path, "w", encoding="utf-8") as f:
+        json.dump(profile, f, ensure_ascii=False, indent=2)
 
 
 def load_session(filepath: str) -> dict:

@@ -25,12 +25,14 @@ def create_mock_session():
     ]
     
     summary = "来访者感到工作压力大，主要源于项目进度紧和领导的高要求。咨询师引导其深入探讨压力来源。"
+    visitor_description = "一位正面临职场压力、寻求压力管理协助的职场人士。"
     
     filepath = save_session(
         visitor_id=visitor_id,
         listener_transcript=listener_transcript,
         speaker_transcript=speaker_transcript,
-        summary=summary
+        summary=summary,
+        visitor_description=visitor_description
     )
     
     print(f"Mock session saved to: {filepath}")

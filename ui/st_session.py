@@ -25,6 +25,10 @@ from core.session_storage import (
     save_session as save_session_to_disk,
     generate_default_visitor_id,
     get_visitor_ids,
+    get_visitor_profile,
+    get_sessions_for_visitor,
+    load_session as load_session_from_disk,
+    get_sessions_dir,
 )
 
 
@@ -256,11 +260,18 @@ def save_session(visitor_id: str) -> tuple:
 
     visitor_id = visitor_id.strip()
 
-    # Generate AI summary
+    # Generate AI summary and visitor description
     summary = ""
+    visitor_description = None
     if st.session_state.get("suggestion_engine"):
         try:
             summary = st.session_state.suggestion_engine.generate_session_summary(
+                speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
+            )
+            
+            # Generate description if it's a new visitor or we want to update it
+            # For simplicity, we'll generate it every time or could check get_visitor_profile
+            visitor_description = st.session_state.suggestion_engine.generate_visitor_description(
                 speaker_transcript=speaker_transcript, listener_transcript=listener_transcript
             )
         except Exception as e:
@@ -275,10 +286,35 @@ def save_session(visitor_id: str) -> tuple:
             listener_transcript=listener_transcript,
             speaker_transcript=speaker_transcript,
             summary=summary,
+            visitor_description=visitor_description,
         )
         return True, f"会话已保存到: {filepath}", filepath
     except Exception as e:
         return False, f"保存失败: {str(e)}", None
+
+
+def get_all_visitor_info() -> list:
+    """Get summarized info for all visitors."""
+    visitor_ids = get_visitor_ids()
+    info_list = []
+    for vid in visitor_ids:
+        profile = get_visitor_profile(vid)
+        info_list.append({
+            "id": vid,
+            "description": profile.get("description", "一位寻求帮助的来访者")
+        })
+    return info_list
+
+
+def get_sessions_list(visitor_id: str) -> list:
+    """Get list of session files for a visitor."""
+    return get_sessions_for_visitor(visitor_id)
+
+
+def load_specific_session(visitor_id: str, session_filename: str) -> dict:
+    """Load a specific session file."""
+    filepath = get_sessions_dir() / visitor_id / session_filename
+    return load_session_from_disk(str(filepath))
 
 
 def get_existing_visitor_ids() -> list:

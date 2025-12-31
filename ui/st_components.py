@@ -215,3 +215,90 @@ def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
         save_clicked = st.button("💾 保存会话", type="primary", use_container_width=True)
 
     return visitor_id, save_clicked
+
+
+def history_viewer(visitor_info: list, get_sessions_func, load_session_func):
+    """
+    Render the history browser.
+    
+    Args:
+        visitor_info: List of {"id": str, "description": str}
+        get_sessions_func: Function(visitor_id) -> list of filenames
+        load_session_func: Function(visitor_id, filename) -> session_dict
+    """
+    if not visitor_info:
+        st.info("暂无历史记录。")
+        return
+
+    # 1. Visitor Selection
+    v_ids = [v["id"] for v in visitor_info]
+    selected_v_id = st.selectbox(
+        "选择来访者", 
+        options=v_ids,
+        format_func=lambda x: f"{x} - {next(v['description'] for v in visitor_info if v['id'] == x)}"
+    )
+    
+    # 2. Session List for selected visitor
+    if selected_v_id:
+        sessions = get_sessions_func(selected_v_id)
+        if not sessions:
+            st.warning("该来访者暂无保存的会话。")
+            return
+            
+        # Reverse to show newest first
+        selected_session_file = st.selectbox(
+            "选择会话日期",
+            options=list(reversed(sessions)),
+            format_func=lambda x: x.replace(".json", "")
+        )
+        
+        if selected_session_file:
+            session_data = load_session_func(selected_v_id, selected_session_file)
+            
+            # 3. Session Details
+            st.divider()
+            
+            # Summary Section
+            st.subheader("💡 会话提要")
+            st.info(session_data.get("summary", "无提要"))
+            
+            # Dialogue Details
+            with st.expander("📝 详细对话历史", expanded=False):
+                conversation = session_data.get("conversation", {})
+                dialogue = conversation.get("dialogue")
+                
+                if dialogue:
+                    # New chronological format
+                    for msg in dialogue:
+                        role = msg.get("role", "未知")
+                        time_str = msg.get("time", "")
+                        text = msg.get("text", "")
+                        
+                        align = "left" if role == "倾诉者" else "right"
+                        bg_color = "#f0fdf4" if role == "倾诉者" else "#eff6ff"
+                        label_color = "#166534" if role == "倾诉者" else "#1e40af"
+                        
+                        st.markdown(
+                            f"""
+                            <div style='display: flex; flex-direction: column; align-items: {"flex-start" if align=="left" else "flex-end"}; margin: 10px 0;'>
+                                <div style='font-size: 0.8em; color: {label_color}; margin-bottom: 2px;'>
+                                    {role} [{time_str}]
+                                </div>
+                                <div style='background: {bg_color}; padding: 10px; border-radius: 10px; max-width: 80%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);'>
+                                    {text}
+                                </div>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+                else:
+                    # Fallback to legacy separate columns
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.markdown("**倾听者**")
+                        for msg in conversation.get("listener", []):
+                            st.caption(f"[{msg.get('time')}] {msg.get('text')}")
+                    with col2:
+                        st.markdown("**倾诉者**")
+                        for msg in conversation.get("speaker", []):
+                            st.caption(f"[{msg.get('time')}] {msg.get('text')}")

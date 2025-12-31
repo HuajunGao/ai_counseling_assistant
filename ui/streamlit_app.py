@@ -54,6 +54,9 @@ from ui.st_session import (
     clear_session,
     save_session,
     get_existing_visitor_ids,
+    get_all_visitor_info,
+    get_sessions_list,
+    load_specific_session,
 )
 from core.session_storage import generate_default_visitor_id
 from ui.st_components import (
@@ -108,8 +111,8 @@ init_session_state()
 # Header - compact but visible
 st.markdown("## 🎙️ AI Counseling Copilot")
 
-# Create tabs: Main and Config
-tab_main, tab_config = st.tabs(["📝 对话", "⚙️ 设置"])
+# Create tabs: Main, History and Config
+tab_main, tab_history, tab_config = st.tabs(["📝 对话", "📜 历史记录", "⚙️ 设置"])
 
 # ===== CONFIG TAB =====
 with tab_config:
@@ -136,6 +139,18 @@ with tab_config:
     st.session_state.selected_mic_idx = mic_idx
     st.session_state.selected_speaker_idx = speaker_idx
     st.session_state.selected_ai_interval = ai_interval
+
+# ===== HISTORY TAB =====
+with tab_history:
+    st.markdown("### 🔍 浏览过往记录")
+    from ui.st_components import history_viewer
+    
+    visitor_info = get_all_visitor_info()
+    history_viewer(
+        visitor_info=visitor_info,
+        get_sessions_func=get_sessions_list,
+        load_session_func=load_specific_session
+    )
 
 # ===== MAIN TAB =====
 with tab_main:

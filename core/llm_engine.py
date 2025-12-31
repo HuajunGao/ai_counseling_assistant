@@ -140,3 +140,25 @@ class SuggestionEngine:
         except Exception as e:
             logger.error(f"Failed to generate session summary: {e}")
             return f"生成总结时出错：{str(e)}"
+
+    def generate_visitor_description(self, speaker_transcript: list, listener_transcript: list) -> str:
+        """Generate a one-sentence description of the visitor based on the conversation."""
+        if not self.provider:
+            return "一位来访者"
+
+        import json
+
+        context_data = {
+            "倾诉者": [{"time": item.get("time", ""), "text": item.get("text", "")} for item in speaker_transcript],
+            "倾听者": [{"time": item.get("time", ""), "text": item.get("text", "")} for item in listener_transcript],
+        }
+
+        system_prompt = "你是一位专业的心理咨询记录整理助手。请根据对话内容，为这位来访者写一句非常简短的描述（一句话，不超过30字），概括其核心困扰或性格特征。"
+        user_content = f"请为此来访者生成一句话描述：\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+
+        try:
+            description = self.provider.generate(user_content, system_prompt=system_prompt)
+            return description.strip().replace("\n", " ")
+        except Exception as e:
+            logger.error(f"Failed to generate visitor description: {e}")
+            return "一位寻求帮助的来访者"

@@ -149,7 +149,7 @@ def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "bl
                     time_str = item.get("time", "")
                     text = item.get("text", "")
                     st.markdown(
-                        f"<div style='padding: 5px; margin: 3px 0; background: rgba(0,0,0,0.05); border-radius: 5px;'><span style='color: #666; font-size: 0.8em;'>{time_str}</span> {text}</div>",
+                        f"<div style='padding: 5px; margin: 3px 0; background: rgba(255,255,255,0.05); border: 1px solid rgba(128,128,128,0.2); border-radius: 5px;'><span style='color: gray; font-size: 0.8em;'>{time_str}</span> {text}</div>",
                         unsafe_allow_html=True,
                     )
                 else:
@@ -284,7 +284,7 @@ def history_viewer(visitor_info: list, get_sessions_func, load_session_func):
                                 <div style='font-size: 0.8em; color: {label_color}; margin-bottom: 2px;'>
                                     {role} [{time_str}]
                                 </div>
-                                <div style='background: {bg_color}; padding: 10px; border-radius: 10px; max-width: 80%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);'>
+                                <div style='background: {bg_color}; color: #1a1a1a; padding: 10px; border-radius: 10px; max-width: 80%; box-shadow: 0 1px 2px rgba(0,0,0,0.1);'>
                                     {text}
                                 </div>
                             </div>

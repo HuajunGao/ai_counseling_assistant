@@ -1,13 +1,45 @@
 import logging
 import os
+import re
 from typing import List, Optional
 
 import config
 from core.llm_providers import create_llm_provider, OpenAIProvider
+from core.llm_models import VisitorProfile, ProofreadResult, ProofreadMessage
+from pydantic import ValidationError
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def clean_json_response(response: str) -> str:
+    """Remove markdown code blocks and other artifacts from LLM JSON responses.
+    
+    Args:
+        response: Raw response from LLM that may contain markdown code blocks
+        
+    Returns:
+        Cleaned JSON string ready for parsing
+    """
+    response = response.strip()
+    
+    # Method 1: Try to extract JSON from markdown code blocks using regex
+    # This handles cases like ```json\n{...}\n``` or ```\n{...}\n```
+    match = re.search(r'```(?:json)?\s*([\{\[].*?[\}\]])\s*```', response, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    
+    # Method 2: Simple prefix/suffix removal for common patterns
+    if response.startswith('```json'):
+        response = response[7:].strip()
+    elif response.startswith('```'):
+        response = response[3:].strip()
+    
+    if response.endswith('```'):
+        response = response[:-3].strip()
+    
+    return response
 
 
 def load_system_prompt(filepath: str) -> str:
@@ -216,15 +248,19 @@ class SuggestionEngine:
 
         try:
             response = self.provider.generate(user_content, system_prompt=system_prompt)
-            # Parse JSON response
-            profile_data = json.loads(response)
-            return profile_data
-        except json.JSONDecodeError as e:
+            # Clean and parse JSON response using Pydantic
+            cleaned_response = clean_json_response(response)
+            profile = VisitorProfile.model_validate_json(cleaned_response)
+            # Convert to dict for backward compatibility
+            return profile.model_dump()
+        except (json.JSONDecodeError, ValidationError) as e:
             logger.error(f"Failed to parse visitor profile JSON: {e}. Response: {response}")
-            return {
-                "description": "一位寻求帮助的来访者",
-                "personal_info": {"age": None, "gender": None, "occupation": None, "background": ""}
-            }
+            # Return default profile using Pydantic model
+            default_profile = VisitorProfile(
+                description="一位寻求帮助的来访者",
+                personal_info={"age": None, "gender": None, "occupation": None, "background": ""}
+            )
+            return default_profile.model_dump()
     def proofread_transcript(self, speaker_transcript: list, listener_transcript: list) -> list:
         """Correct ASR errors in transcripts based on context.
         
@@ -265,17 +301,20 @@ class SuggestionEngine:
 
         try:
             response = self.provider.generate(user_content, system_prompt=proofread_system_prompt)
-            # Parse JSON response
-            corrected_items = json.loads(response)
+            # Clean and parse JSON response using Pydantic
+            cleaned_response = clean_json_response(response)
+            proofread_result = ProofreadResult.model_validate_json(cleaned_response)
             
             # Map corrections back to original combined list
-            for i, corrected in enumerate(corrected_items):
+            for i, corrected_msg in enumerate(proofread_result.messages):
                 if i < len(combined):
-                    combined[i]["corrected_text"] = corrected.get("text", combined[i]["text"])
+                    combined[i]["corrected_text"] = corrected_msg.text
+                    if corrected_msg.merged_from:
+                        combined[i]["merged_from"] = corrected_msg.merged_from
             
             return combined
-        except Exception as e:
-            logger.error(f"Failed to proofread transcript: {e}")
+        except (json.JSONDecodeError, ValidationError) as e:
+            logger.error(f"Failed to proofread transcript: {e}. Response: {response}")
             # Fallback: return original text as corrected_text
             for item in combined:
                 item["corrected_text"] = item["text"]

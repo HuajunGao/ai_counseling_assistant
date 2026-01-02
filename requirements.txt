@@ -18,3 +18,4 @@ gTTS
 soundfile
 soundcard
 azure-cognitiveservices-speech
+pydantic>=2.0.0

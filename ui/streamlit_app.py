@@ -185,9 +185,6 @@ with tab_main:
         st.rerun()
 
     if clear_clicked:
-        # If currently recording, stop it first before clearing
-        if st.session_state.is_recording:
-            stop_recording()
         clear_session()
         st.rerun()
 

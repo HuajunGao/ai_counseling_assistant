@@ -215,14 +215,17 @@ def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
     if not speaker_transcript and not listener_transcript and not has_question:
         return
 
+    # Update tracking variables BEFORE attempting to generate
+    # This prevents repeated attempts if generation fails or returns empty
+    st.session_state.last_suggestion_time = current_time
+    st.session_state.last_transcript_len = current_len
+
     try:
         suggestion = st.session_state.suggestion_engine.generate_suggestions(
             speaker_transcript=speaker_transcript, listener_transcript=listener_transcript, user_question=user_question
         )
         if suggestion:
             st.session_state.ai_suggestions.append({"time": time.strftime("%H:%M:%S"), "text": suggestion})
-            st.session_state.last_suggestion_time = current_time
-            st.session_state.last_transcript_len = current_len
     except Exception as e:
         pass  # Silently fail if LLM not configured
 

@@ -232,6 +232,10 @@ def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
 
 def clear_session():
     """Clear all transcripts and suggestions."""
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info("Clearing session - transcripts and AI suggestions")
+    
     st.session_state.my_transcript = []
     st.session_state.other_transcript = []
     st.session_state.ai_suggestions = []
@@ -239,18 +243,24 @@ def clear_session():
 
     # Also clear pending queues
     if "mic_output_queue" in st.session_state:
+        cleared_count = 0
         while not st.session_state.mic_output_queue.empty():
             try:
                 st.session_state.mic_output_queue.get_nowait()
+                cleared_count += 1
             except:
                 break
+        logger.info(f"Cleared {cleared_count} items from mic output queue")
 
     if "loopback_output_queue" in st.session_state:
+        cleared_count = 0
         while not st.session_state.loopback_output_queue.empty():
             try:
                 st.session_state.loopback_output_queue.get_nowait()
+                cleared_count += 1
             except:
                 break
+        logger.info(f"Cleared {cleared_count} items from loopback output queue")
 
 
 def save_session(visitor_id: str, private_notes: Optional[str] = None) -> tuple:

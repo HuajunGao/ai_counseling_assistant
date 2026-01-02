@@ -124,12 +124,25 @@ def stop_recording():
     if not st.session_state.is_recording:
         return
 
+    # Stop all components
     if st.session_state.capture:
         st.session_state.capture.stop()
     if st.session_state.mic_transcriber:
         st.session_state.mic_transcriber.stop()
     if st.session_state.loopback_transcriber:
         st.session_state.loopback_transcriber.stop()
+
+    # Wait for transcriber threads to finish
+    if st.session_state.mic_transcriber:
+        st.session_state.mic_transcriber.join(timeout=3.0)
+    if st.session_state.loopback_transcriber:
+        st.session_state.loopback_transcriber.join(timeout=3.0)
+
+    # Give devices time to fully release
+    time.sleep(0.5)
+    
+    # Clear device cache to force refresh on next start
+    st.session_state.devices_cache = None
 
     st.session_state.is_recording = False
 

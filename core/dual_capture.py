@@ -89,18 +89,20 @@ class DualStreamCapture:
             return
 
         mic = mics[self.mic_idx]
-        logger.info(f"Mic: {mic.name}")
+        logger.info(f"Opening mic device {self.mic_idx}: {mic.name}")
 
         try:
             with mic.recorder(samplerate=self.sample_rate, channels=1) as recorder:
+                logger.info(f"Mic recorder opened successfully: {mic.name}")
                 while self.running:
                     chunk = recorder.record(numframes=int(self.sample_rate * 0.1))
                     if chunk.ndim == 2:
                         chunk = np.mean(chunk, axis=1)
                     self.mic_rms = float(np.sqrt(np.mean(chunk**2)))
                     self.mic_queue.put(chunk.astype(np.float32))
+                logger.info(f"Mic recorder closed normally: {mic.name}")
         except Exception as e:
-            logger.error(f"Mic capture error: {e}")
+            logger.error(f"Mic capture error for {mic.name}: {e}", exc_info=True)
 
     def _capture_loopback(self):
         """Capture from speaker loopback."""
@@ -135,18 +137,20 @@ class DualStreamCapture:
             logger.error("No loopback mic found")
             return
 
-        logger.info(f"Loopback: {loopback_mic.name}")
+        logger.info(f"Opening loopback device: {loopback_mic.name}")
 
         try:
             with loopback_mic.recorder(samplerate=self.sample_rate, channels=1) as recorder:
+                logger.info(f"Loopback recorder opened successfully: {loopback_mic.name}")
                 while self.running:
                     chunk = recorder.record(numframes=int(self.sample_rate * 0.1))
                     if chunk.ndim == 2:
                         chunk = np.mean(chunk, axis=1)
                     self.loopback_rms = float(np.sqrt(np.mean(chunk**2)))
                     self.loopback_queue.put(chunk.astype(np.float32))
+                logger.info(f"Loopback recorder closed normally: {loopback_mic.name}")
         except Exception as e:
-            logger.error(f"Loopback capture error: {e}")
+            logger.error(f"Loopback capture error for {loopback_mic.name}: {e}", exc_info=True)
 
     def get_levels(self) -> dict:
         """Get current audio levels."""

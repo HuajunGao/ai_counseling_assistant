@@ -53,6 +53,30 @@ def init_session_state():
         st.session_state.loopback_output_queue = queue.Queue()
         # Cache devices at init to avoid COM issues on rerun
         st.session_state.devices_cache = None
+        # Pre-loaded ASR providers
+        st.session_state.preloaded_asr_providers = {}
+        _preload_asr_models()
+
+
+def _preload_asr_models():
+    """Pre-load ASR models at app startup to avoid delays when starting recording."""
+    import logging
+    import config
+    from core.asr_providers import create_asr_provider
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info("Pre-loading ASR models...")
+        
+        # Pre-load for default backend
+        provider = create_asr_provider(config)
+        st.session_state.preloaded_asr_providers['default'] = provider
+        
+        logger.info(f"ASR model pre-loaded successfully: {config.ASR_BACKEND}")
+    except Exception as e:
+        logger.warning(f"Failed to pre-load ASR models: {e}")
+        # Don't fail app startup if pre-loading fails
 
 
 def get_devices():
@@ -105,14 +129,23 @@ def start_recording(mic_idx: int, loopback_idx: int):
             setattr(loopback_config, attr, getattr(base_config, attr))
     loopback_config.ASR_BACKEND = loopback_asr_backend
 
-    # Create transcribers with separate configs
+    # Get pre-loaded providers if available
+    preloaded_provider = st.session_state.preloaded_asr_providers.get('default')
+
+    # Create transcribers with separate configs and pre-loaded provider
     st.session_state.mic_transcriber = Transcriber(
-        st.session_state.capture.mic_queue, st.session_state.mic_output_queue, config=mic_config
+        st.session_state.capture.mic_queue, 
+        st.session_state.mic_output_queue, 
+        config=mic_config,
+        preloaded_provider=preloaded_provider if mic_asr_backend == base_config.ASR_BACKEND else None
     )
     st.session_state.mic_transcriber.start()
 
     st.session_state.loopback_transcriber = Transcriber(
-        st.session_state.capture.loopback_queue, st.session_state.loopback_output_queue, config=loopback_config
+        st.session_state.capture.loopback_queue, 
+        st.session_state.loopback_output_queue, 
+        config=loopback_config,
+        preloaded_provider=preloaded_provider if loopback_asr_backend == base_config.ASR_BACKEND else None
     )
     st.session_state.loopback_transcriber.start()
 

@@ -100,12 +100,13 @@ class SileroVAD:
 
 
 class Transcriber(threading.Thread):
-    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, config=None):
+    def __init__(self, input_queue: queue.Queue, output_queue: queue.Queue, config=None, preloaded_provider=None):
         super().__init__()
         self.input_queue = input_queue
         self.output_queue = output_queue
         self.running = False
         self.provider = None
+        self.preloaded_provider = preloaded_provider  # Store pre-loaded provider
 
         # Use provided config or fall back to global config module
         import config as default_config
@@ -140,8 +141,13 @@ class Transcriber(threading.Thread):
 
     def load_model(self):
         try:
-            self.provider = create_asr_provider(self.config)
-            logger.info("ASR provider loaded: %s", self.config.ASR_BACKEND)
+            # Use pre-loaded provider if available
+            if self.preloaded_provider:
+                self.provider = self.preloaded_provider
+                logger.info("Using pre-loaded ASR provider")
+            else:
+                self.provider = create_asr_provider(self.config)
+                logger.info("ASR provider loaded: %s", self.config.ASR_BACKEND)
 
             if self.vad_enabled:
                 logger.info("Loading Silero VAD...")

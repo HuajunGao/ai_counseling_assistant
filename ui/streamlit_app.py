@@ -118,7 +118,7 @@ tab_main, tab_history, tab_config = st.tabs(["📝 对话", "📜 历史记录",
 with tab_config:
     st.markdown("### 设备设置")
     devices = get_devices()
-    mic_idx, speaker_idx = device_selectors(devices, config.DEFAULT_DEVICE_NAME)
+    mic_idx, speaker_idx = device_selectors(devices, config.DEFAULT_MIC_NAME, config.DEFAULT_SPEAKER_NAME)
 
     st.markdown("### AI 设置")
     ai_model, ai_interval, ai_context_len, mic_asr, loopback_asr = ai_settings_panel(
@@ -185,6 +185,9 @@ with tab_main:
         st.rerun()
 
     if clear_clicked:
+        # If currently recording, stop it first before clearing
+        if st.session_state.is_recording:
+            stop_recording()
         clear_session()
         st.rerun()
 

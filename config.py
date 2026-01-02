@@ -62,8 +62,9 @@ SYSTEM_PROMPT_FILE = os.getenv("SYSTEM_PROMPT_FILE", "prompts/counseling_system.
 OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
 ASR_BACKENDS = ["funasr", "openai", "azure"]  # Transcription backend options
 
-# Default device name for auto-selection
-DEFAULT_DEVICE_NAME = os.getenv("DEFAULT_DEVICE_NAME", "Echo Cancelling Speakerphone")
+# Default device names for auto-selection
+DEFAULT_MIC_NAME = os.getenv("DEFAULT_MIC_NAME", "Echo Cancelling Speakerphone")
+DEFAULT_SPEAKER_NAME = os.getenv("DEFAULT_SPEAKER_NAME", "Jabra EVOLVE 30 II")
 
 # Azure Speech (ASR)
 SPEECH_KEY = os.getenv("SPEECH_KEY", "")

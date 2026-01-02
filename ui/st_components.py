@@ -5,23 +5,24 @@ Reusable Streamlit UI components.
 import streamlit as st
 
 
-def device_selectors(devices: dict, default_name: str = "") -> tuple:
+def device_selectors(devices: dict, default_mic_name: str = "", default_speaker_name: str = "") -> tuple:
     """
     Render device selection dropdowns.
     Returns (mic_idx, speaker_idx).
     """
     col1, col2 = st.columns(2)
 
-    # Find default indices based on device name
+    # Find default indices based on device names
     default_mic = 0
     default_speaker = 0
-    if default_name:
+    if default_mic_name:
         for m in devices["mics"]:
-            if default_name.lower() in m["name"].lower():
+            if default_mic_name.lower() in m["name"].lower():
                 default_mic = m["id"]
                 break
+    if default_speaker_name:
         for s in devices["speakers"]:
-            if default_name.lower() in s["name"].lower():
+            if default_speaker_name.lower() in s["name"].lower():
                 default_speaker = s["id"]
                 break
 

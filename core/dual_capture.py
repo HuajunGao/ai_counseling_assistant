@@ -35,10 +35,11 @@ logger = logging.getLogger(__name__)
 class DualStreamCapture:
     """Captures audio from both microphone and speaker loopback."""
 
-    def __init__(self, mic_idx: int, loopback_idx: int, sample_rate: int = 16000):
+    def __init__(self, mic_idx: int, loopback_idx: int, sample_rate: int = 16000, mode: str = "dual"):
         self.mic_idx = mic_idx
         self.loopback_idx = loopback_idx
         self.sample_rate = sample_rate
+        self.mode = mode  # "dual", "mic_only", or "speaker_only"
 
         self.mic_queue = queue.Queue()
         self.loopback_queue = queue.Queue()
@@ -51,26 +52,36 @@ class DualStreamCapture:
         self._loopback_thread = None
 
     def start(self):
-        """Start capturing from both sources."""
+        """Start capturing from enabled sources based on mode."""
         if sc is None:
             raise RuntimeError("soundcard library not installed")
 
         self.running = True
-        self._mic_thread = threading.Thread(target=self._capture_mic, daemon=True)
-        self._loopback_thread = threading.Thread(target=self._capture_loopback, daemon=True)
-
-        self._mic_thread.start()
-        self._loopback_thread.start()
-        logger.info("Dual stream capture started")
+        
+        # Start mic thread if mode is dual or mic_only
+        if self.mode in ("dual", "mic_only"):
+            self._mic_thread = threading.Thread(target=self._capture_mic, daemon=True)
+            self._mic_thread.start()
+            logger.info(f"Mic capture started (mode: {self.mode})")
+        
+        # Start loopback thread if mode is dual or speaker_only
+        if self.mode in ("dual", "speaker_only"):
+            self._loopback_thread = threading.Thread(target=self._capture_loopback, daemon=True)
+            self._loopback_thread.start()
+            logger.info(f"Loopback capture started (mode: {self.mode})")
+        
+        logger.info(f"Audio capture started in {self.mode} mode")
 
     def stop(self):
         """Stop capturing."""
         self.running = False
-        if self._mic_thread:
+        if self._mic_thread and self._mic_thread.is_alive():
             self._mic_thread.join(timeout=2.0)
-        if self._loopback_thread:
+            logger.info("Mic capture stopped")
+        if self._loopback_thread and self._loopback_thread.is_alive():
             self._loopback_thread.join(timeout=2.0)
-        logger.info("Dual stream capture stopped")
+            logger.info("Loopback capture stopped")
+        logger.info(f"Audio capture stopped ({self.mode} mode)")
 
     def _capture_mic(self):
         """Capture from microphone."""
@@ -155,8 +166,8 @@ class DualStreamCapture:
     def get_levels(self) -> dict:
         """Get current audio levels."""
         return {
-            "mic_rms": self.mic_rms,
-            "loopback_rms": self.loopback_rms,
+            "mic_rms": self.mic_rms if self.mode in ("dual", "mic_only") else 0.0,
+            "loopback_rms": self.loopback_rms if self.mode in ("dual", "speaker_only") else 0.0,
         }
 
 

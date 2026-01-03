@@ -51,21 +51,27 @@ def device_selectors(devices: dict, default_mic_name: str = "", default_speaker_
     return mic_idx, speaker_idx
 
 
-def level_meters(mic_rms: float, loopback_rms: float):
+def level_meters(mic_rms: float, loopback_rms: float, mic_enabled: bool = True, speaker_enabled: bool = True):
     """Render audio level meters."""
     col1, col2 = st.columns(2)
 
     # Convert RMS to percentage (0-100)
-    mic_pct = min(int(mic_rms * 1000), 100)
-    speaker_pct = min(int(loopback_rms * 1000), 100)
+    mic_pct = min(int(mic_rms * 1000), 100) if mic_enabled else 0
+    speaker_pct = min(int(loopback_rms * 1000), 100) if speaker_enabled else 0
+    
+    # Colors for enabled/disabled states
+    mic_gradient = "linear-gradient(90deg, #22c55e, #86efac)" if mic_enabled else "linear-gradient(90deg, #555, #777)"
+    speaker_gradient = "linear-gradient(90deg, #3b82f6, #93c5fd)" if speaker_enabled else "linear-gradient(90deg, #555, #777)"
+    mic_label = "🎤 Mic" if mic_enabled else "🎤 Mic (未启用)"
+    speaker_label = "🔊 Speaker" if speaker_enabled else "🔊 Speaker (未启用)"
 
     with col1:
         st.markdown(
             f"""
         <div style='margin-bottom: 5px;'>
-            <span style='font-size: 0.8em;'>🎤 Mic</span>
+            <span style='font-size: 0.8em; opacity: {"1.0" if mic_enabled else "0.5"};'>{mic_label}</span>
             <div style='background: #333; border-radius: 4px; height: 12px; width: 100%;'>
-                <div style='background: linear-gradient(90deg, #22c55e, #86efac); width: {mic_pct}%; height: 100%; border-radius: 4px; transition: width 0.1s;'></div>
+                <div style='background: {mic_gradient}; width: {mic_pct}%; height: 100%; border-radius: 4px; transition: width 0.1s;'></div>
             </div>
         </div>
         """,
@@ -76,9 +82,9 @@ def level_meters(mic_rms: float, loopback_rms: float):
         st.markdown(
             f"""
         <div style='margin-bottom: 5px;'>
-            <span style='font-size: 0.8em;'>🔊 Speaker</span>
+            <span style='font-size: 0.8em; opacity: {"1.0" if speaker_enabled else "0.5"};'>{speaker_label}</span>
             <div style='background: #333; border-radius: 4px; height: 12px; width: 100%;'>
-                <div style='background: linear-gradient(90deg, #3b82f6, #93c5fd); width: {speaker_pct}%; height: 100%; border-radius: 4px; transition: width 0.1s;'></div>
+                <div style='background: {speaker_gradient}; width: {speaker_pct}%; height: 100%; border-radius: 4px; transition: width 0.1s;'></div>
             </div>
         </div>
         """,
@@ -120,7 +126,7 @@ def ai_settings_panel(openai_models: list, asr_backends: list, current_ai_model:
         )
 
     with col2:
-        interval = st.slider("⏱️ 间隔(秒)", min_value=10, max_value=120, value=15, step=5, key="ai_interval")
+        interval = st.slider("⏱️ 间隔(秒)", min_value=30, max_value=120, value=30, step=5, key="ai_interval")
 
     with col3:
         context_len = st.slider("📝 上下文(行)", min_value=3, max_value=20, value=15, step=1, key="ai_context_len")
@@ -137,13 +143,39 @@ def ai_settings_panel(openai_models: list, asr_backends: list, current_ai_model:
     return ai_model, interval, context_len, mic_asr, loopback_asr
 
 
-def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "blue"):
+def recording_mode_selector(current_mode: str = "dual") -> str:
+    """Render recording mode selector."""
+    mode_options = {
+        "dual": "🎙️🔊 双轨录制 (麦克风 + 扬声器)",
+        "mic_only": "🎙️ 仅麦克风 (倾听者)",
+        "speaker_only": "🔊 仅扬声器 (倾诉者)"
+    }
+    
+    mode_keys = list(mode_options.keys())
+    current_index = mode_keys.index(current_mode) if current_mode in mode_keys else 0
+    
+    selected_mode = st.radio(
+        "📹 录制模式",
+        options=mode_keys,
+        index=current_index,
+        format_func=lambda x: mode_options[x],
+        key="recording_mode_select",
+        horizontal=True
+    )
+    
+    return selected_mode
+
+
+
+def transcript_panel(title: str, emoji: str, transcripts: list, color: str = "blue", enabled: bool = True):
     """Render a transcript panel with scrollable content."""
     st.markdown(f"**{emoji} {title}**")
 
     container = st.container(height=400)
     with container:
-        if transcripts:
+        if not enabled:
+            st.info("📴 此通道未启用录制")
+        elif transcripts:
             # Show newest first (reversed order)
             for item in reversed(transcripts):
                 if isinstance(item, dict):
@@ -167,21 +199,40 @@ def ai_suggestions_panel(suggestions: list):
     """Render AI suggestions panel with question input."""
     st.markdown("**💡 AI 建议**")
 
-    # Question input for the counselor
-    user_question = st.text_input(
-        "💬 向 AI 提问", placeholder="输入问题后按回车发送...", key="ai_question_input", label_visibility="collapsed"
-    )
+    # Question input with manual trigger button - side by side layout
+    col_input, col_button = st.columns([5, 1])
+    with col_input:
+        user_question = st.text_input(
+            "💬 向 AI 提问", 
+            placeholder="输入问题...", 
+            key="ai_question_input",
+            label_visibility="collapsed"
+        )
+    with col_button:
+        ask_button = st.button("🤖 提问", type="primary", use_container_width=True, key="ask_ai_button")
 
-    container = st.container(height=350)
+    container = st.container(height=500)
     with container:
         if suggestions:
-            for item in reversed(suggestions[-5:]):  # Show last 5, newest first
-                with st.expander(f"🕐 {item['time']}", expanded=True):
-                    st.markdown(item["text"])
+            # Show suggestions with each one using 2-column text layout (like newspaper)
+            recent_suggestions = list(reversed(suggestions[-10:]))  # Show last 10, newest first
+            
+            for item in recent_suggestions:
+                # Use CSS columns to make the text flow in 2 columns
+                st.markdown(f"**🕐 {item['time']}**")
+                st.markdown(
+                    f"""
+                    <div style='column-count: 2; column-gap: 20px; text-align: justify;'>
+                        {item["text"]}
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                st.divider()
         else:
             st.info("AI 将根据对话内容定期提供建议，或输入问题直接询问...")
 
-    return user_question
+    return user_question, ask_button
 
 
 def status_indicator(is_recording: bool):
@@ -197,31 +248,26 @@ def visitor_id_input(default_id: str, existing_ids: list) -> tuple:
     Render visitor ID input with save button.
     Returns (visitor_id, save_clicked).
     """
-    col1, col2 = st.columns([3, 1])
-
-    with col1:
-        # Text input for visitor ID with autocomplete hint
-        help_text = f"已有来访者: {', '.join(existing_ids[-5:])}" if existing_ids else "输入来访者ID"
-        visitor_id = st.text_input(
-            "🏷️ 来访 ID",
-            value=default_id,
-            placeholder="例如: 20251230 或 client_001",
-            help=help_text,
-            key="visitor_id_input",
-        )
+    # Text input for visitor ID with autocomplete hint
+    help_text = f"已有来访者: {', '.join(existing_ids[-5:])}" if existing_ids else "输入来访者ID"
+    visitor_id = st.text_input(
+        "🏷️ 来访 ID",
+        value=default_id,
+        placeholder="例如: 20251230 或 client_001",
+        help=help_text,
+        key="visitor_id_input",
+    )
 
     # Add Private Notes text area
     private_notes = st.text_area(
-        "📝 咨询师私密笔记 (仅保存在本地，AI 不可见)",
+        "📝 咨询师私密笔记 (仅保存在本地,AI 不可见)",
         placeholder="在这里记录您的感悟、督导重点或下次会话目标...",
         key="private_notes_input",
         height=100
     )
-
-    with col2:
-        # Add some vertical spacing to align with input
-        st.markdown("<div style='height: 28px'></div>", unsafe_allow_html=True)
-        save_clicked = st.button("💾 保存会话", type="primary", use_container_width=True)
+    
+    # Save button below (full width for better alignment)
+    save_clicked = st.button("💾 保存会话", type="primary", use_container_width=True)
 
     return visitor_id, save_clicked, private_notes
 

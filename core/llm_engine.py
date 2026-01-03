@@ -141,11 +141,16 @@ class SuggestionEngine:
             ],
         }
 
-        if not context_data["倾诉者"] and not context_data["倾听者"]:
+        # Only skip if there's no conversation AND no question
+        has_question = bool(user_question and user_question.strip())
+        if not context_data["倾诉者"] and not context_data["倾听者"] and not has_question:
             return ""
 
         # Build user message
-        user_content = f"对话上下文:\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+        if context_data["倾诉者"] or context_data["倾听者"]:
+            user_content = f"对话上下文:\n```json\n{json.dumps(context_data, ensure_ascii=False, indent=2)}\n```"
+        else:
+            user_content = "当前没有对话记录。"
 
         if user_question and user_question.strip():
             user_content += f"\n\n倾听者的问题: {user_question.strip()}"

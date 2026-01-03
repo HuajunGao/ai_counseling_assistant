@@ -58,9 +58,16 @@ AI_SUGGESTION_INTERVAL = int(os.getenv("AI_SUGGESTION_INTERVAL", "30"))  # secon
 AI_CONTEXT_LENGTH = int(os.getenv("AI_CONTEXT_LENGTH", "10"))  # lines
 SYSTEM_PROMPT_FILE = os.getenv("SYSTEM_PROMPT_FILE", "prompts/counseling_system.txt")
 
+# ASR Preloading
+PRELOAD_ASR_MODELS = _env_bool("PRELOAD_ASR_MODELS", False)  # Set to True to preload models at startup
+
 # Available models for UI selection
 OPENAI_MODELS = ["gpt-4o-mini", "gpt-4o", "gpt-4-turbo", "gpt-3.5-turbo"]
 ASR_BACKENDS = ["funasr", "openai", "azure"]  # Transcription backend options
+
+# Recording Mode Configuration
+RECORDING_MODE = os.getenv("RECORDING_MODE", "dual")  # dual/mic_only/speaker_only
+RECORDING_MODES = ["dual", "mic_only", "speaker_only"]
 
 # Default device names for auto-selection
 DEFAULT_MIC_NAME = os.getenv("DEFAULT_MIC_NAME", "Echo Cancelling Speakerphone")

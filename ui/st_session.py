@@ -55,6 +55,8 @@ def init_session_state():
         st.session_state.devices_cache = None
         # Pre-loaded ASR providers
         st.session_state.preloaded_asr_providers = {}
+        # Recording mode
+        st.session_state.recording_mode = "dual"
         _preload_asr_models()
 
 
@@ -65,6 +67,11 @@ def _preload_asr_models():
     from core.asr_providers import create_asr_provider
     
     logger = logging.getLogger(__name__)
+    
+    # Check if preloading is enabled (use getattr for safety with module reloading)
+    if not getattr(config, 'PRELOAD_ASR_MODELS', False):
+        logger.info("ASR model preloading is disabled (PRELOAD_ASR_MODELS=False)")
+        return
     
     try:
         logger.info("Pre-loading ASR models...")
@@ -98,13 +105,13 @@ def get_devices():
     return devices
 
 
-def start_recording(mic_idx: int, loopback_idx: int):
+def start_recording(mic_idx: int, loopback_idx: int, mode: str = "dual"):
     """Start dual-stream audio capture and transcription."""
     if st.session_state.is_recording:
         return
 
-    # Create capture
-    st.session_state.capture = DualStreamCapture(mic_idx, loopback_idx)
+    # Create capture with specified mode
+    st.session_state.capture = DualStreamCapture(mic_idx, loopback_idx, mode=mode)
     st.session_state.capture.start()
 
     # Build separate ASR configs for mic and loopback
@@ -132,22 +139,28 @@ def start_recording(mic_idx: int, loopback_idx: int):
     # Get pre-loaded providers if available
     preloaded_provider = st.session_state.preloaded_asr_providers.get('default')
 
-    # Create transcribers with separate configs and pre-loaded provider
-    st.session_state.mic_transcriber = Transcriber(
-        st.session_state.capture.mic_queue, 
-        st.session_state.mic_output_queue, 
-        config=mic_config,
-        preloaded_provider=preloaded_provider if mic_asr_backend == base_config.ASR_BACKEND else None
-    )
-    st.session_state.mic_transcriber.start()
+    # Create transcribers based on mode
+    if mode in ("dual", "mic_only"):
+        st.session_state.mic_transcriber = Transcriber(
+            st.session_state.capture.mic_queue, 
+            st.session_state.mic_output_queue, 
+            config=mic_config,
+            preloaded_provider=preloaded_provider if mic_asr_backend == base_config.ASR_BACKEND else None
+        )
+        st.session_state.mic_transcriber.start()
+    else:
+        st.session_state.mic_transcriber = None
 
-    st.session_state.loopback_transcriber = Transcriber(
-        st.session_state.capture.loopback_queue, 
-        st.session_state.loopback_output_queue, 
-        config=loopback_config,
-        preloaded_provider=preloaded_provider if loopback_asr_backend == base_config.ASR_BACKEND else None
-    )
-    st.session_state.loopback_transcriber.start()
+    if mode in ("dual", "speaker_only"):
+        st.session_state.loopback_transcriber = Transcriber(
+            st.session_state.capture.loopback_queue, 
+            st.session_state.loopback_output_queue, 
+            config=loopback_config,
+            preloaded_provider=preloaded_provider if loopback_asr_backend == base_config.ASR_BACKEND else None
+        )
+        st.session_state.loopback_transcriber.start()
+    else:
+        st.session_state.loopback_transcriber = None
 
     st.session_state.is_recording = True
 
@@ -165,7 +178,7 @@ def stop_recording():
     if st.session_state.loopback_transcriber:
         st.session_state.loopback_transcriber.stop()
 
-    # Wait for transcriber threads to finish
+    # Wait for transcriber threads to finish (only if they exist)
     if st.session_state.mic_transcriber:
         st.session_state.mic_transcriber.join(timeout=3.0)
     if st.session_state.loopback_transcriber:
@@ -229,23 +242,34 @@ def process_transcripts():
 
 def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
     """Generate AI suggestion if enough time has passed or if user asked a question."""
+    import logging
+    logger = logging.getLogger(__name__)
+    
     current_time = time.time()
 
     # If user asked a question, always generate (skip interval check)
     has_question = bool(user_question and user_question.strip())
+    logger.info(f"DEBUG generate_ai_suggestion: has_question={has_question}, user_question='{user_question}'")
+    
     if not has_question and current_time - st.session_state.last_suggestion_time < interval_seconds:
+        logger.info(f"DEBUG: Skipping - interval not reached")
         return
 
     # Get transcripts (speaker = 倾诉者 = other, listener = 倾听者 = my)
     speaker_transcript = st.session_state.other_transcript or []
     listener_transcript = st.session_state.my_transcript or []
+    logger.info(f"DEBUG: speaker_transcript length={len(speaker_transcript)}, listener_transcript length={len(listener_transcript)}")
 
     # Check if there is new content since last suggestion (skip if user asked question)
     current_len = len(listener_transcript) + len(speaker_transcript)
     if not has_question and current_len == st.session_state.get("last_transcript_len", 0):
+        logger.info(f"DEBUG: Skipping - no new content")
         return
 
-    if not speaker_transcript and not listener_transcript and not has_question:
+    # Allow AI to respond to questions even without conversation
+    # Only skip if there's no question AND no conversation
+    if not has_question and not speaker_transcript and not listener_transcript:
+        logger.info(f"DEBUG: Skipping - no question and no conversation")
         return
 
     # Update tracking variables BEFORE attempting to generate
@@ -254,13 +278,18 @@ def generate_ai_suggestion(interval_seconds: int = 30, user_question: str = ""):
     st.session_state.last_transcript_len = current_len
 
     try:
+        logger.info(f"DEBUG: Calling suggestion_engine.generate_suggestions...")
         suggestion = st.session_state.suggestion_engine.generate_suggestions(
             speaker_transcript=speaker_transcript, listener_transcript=listener_transcript, user_question=user_question
         )
+        logger.info(f"DEBUG: Got suggestion: '{suggestion[:100] if suggestion else None}'...")
         if suggestion:
             st.session_state.ai_suggestions.append({"time": time.strftime("%H:%M:%S"), "text": suggestion})
+            logger.info(f"DEBUG: Added suggestion to list, total suggestions: {len(st.session_state.ai_suggestions)}")
+        else:
+            logger.warning(f"DEBUG: Suggestion was empty!")
     except Exception as e:
-        pass  # Silently fail if LLM not configured
+        logger.error(f"DEBUG: Exception in generate_suggestions: {e}", exc_info=True)
 
 
 def clear_session():
